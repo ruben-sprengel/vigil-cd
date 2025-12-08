@@ -25,10 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.13 /uv /bin/uv
 
-RUN useradd -m -u 1000 vigilcd && \
-    chown -R vigilcd:vigilcd /home/vigilcd
-
-RUN usermod -aG docker vigilcd
+RUN groupadd -r docker || true && \
+    useradd -m -u 1000 vigilcd && \
+    usermod -aG docker vigilcd
 
 WORKDIR /home/vigilcd
 
