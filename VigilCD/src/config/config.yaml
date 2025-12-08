@@ -1,0 +1,84 @@
+# ===================================
+# VigilCD Repository Configurations
+# ===================================
+
+# IMPORTANT: CHANGE THIS FILE ACCORDING TO YOUR SETUP!
+
+repos:
+  # --- Public HTTPS Repository ---
+  - name: "test-my-app"
+    url: "https://github.com/my-username/my-repo-name"
+    auth_method: "https"  # Default, kein SSH-Key nötig
+
+    branches:
+      - name: "main"
+        targets:
+          - name: "backend"
+            file: "docker-compose.yml"
+            deploy: true
+            build_images: false
+          - name: "app"
+            file: "docker-compose.app.yml"
+            deploy: false
+          - name: "testing"
+            file: "docker-compose.test.yml"
+            deploy: false
+
+  # --- Private SSH Repository (Global SSH Key) ---
+  - name: "private-app"
+    url: "git@github.com:my-username/private-app.git"
+    auth_method: "ssh"
+    # ssh_key_path wird aus Umgebungsvariable VIGILCD_SSH_KEY_PATH geladen
+    # Oder explizit setzen: ssh_key_path: "/app/.ssh/id_ed25519"
+
+    branches:
+      - name: "production"
+        targets:
+          - name: "myapp"
+            file: "docker-compose.prod.yml"
+            deploy: true
+            build_images: true
+
+  # --- Private SSH Repository mit dediziertem Key ---
+  - name: "microservice-payment"
+    url: "git@github.com:company/payment-service.git"
+    auth_method: "ssh"
+    ssh_key_path: "/app/.ssh/payment_service_deploy_key"  # Repo-spezifischer Key
+
+    # Private Docker Registry (z.B. GitHub Container Registry)
+    registries:
+      - url: "ghcr.io"
+        username: "deployment-bot"
+        password_env_var: "GHCR_TOKEN"  # In Umgebung setzen
+
+    branches:
+      - name: "main"
+        targets:
+          - name: "payment-api"
+            file: "docker-compose.yml"
+            deploy: true
+            build_images: true
+
+  # --- Private HTTPS Repository mit Token ---
+  - name: "legacy-system"
+    # Token in URL einbetten (nicht empfohlen, besser SSH nutzen)
+    url: "https://oauth2:${GITHUB_TOKEN}@github.com/company/legacy.git"
+    auth_method: "https"
+
+    branches:
+      - name: "stable"
+        targets:
+          - name: "app"
+            file: "docker-compose.yml"
+            deploy: true
+            build_images: false
+
+# ===================================
+# Umgebungsvariablen (in .env setzen):
+# ===================================
+# VIGILCD_SSH_KEY_PATH=/app/.ssh/id_ed25519  # Global SSH Key
+# VIGILCD_CHECK_INTERVAL_MINUTES=5            # Poll-Interval
+# VIGILCD_GIT_RETRY_COUNT=3                   # Git-Retry-Count
+# VIGILCD_DOCKER_TIMEOUT=300                  # Docker Compose Timeout
+# GHCR_TOKEN=ghp_xxxxxxxxxxxx                 # GitHub Container Registry Token
+# GITHUB_TOKEN=ghp_yyyyyyyyyyyy               # GitHub API Token (für HTTPS)
