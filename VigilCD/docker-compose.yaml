@@ -1,0 +1,77 @@
+services:
+  vigilcd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+#    image: vigilcd:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./ssh-keys:/home/vigilcd/.ssh:ro
+      - ./repos:/home/vigilcd/repos
+      - ./config/config.yaml:/home/vigilcd/src/config/config.yaml:ro
+    environment:
+#      DOCKER_HOST: "tcp://host.docker.internal:2375"
+      VIGILCD_CHECK_INTERVAL_MINUTES: "5"
+      VIGILCD_GIT_RETRY_COUNT: "3"
+      VIGILCD_RETRY_BACKOFF_FACTOR: "2.0"
+      VIGILCD_DOCKER_TIMEOUT: "300"
+      VIGILCD_GIT_TIMEOUT: "60"
+      VIGILCD_DOCKER_DAEMON_TIMEOUT: "10"
+      VIGILCD_LOG_LEVEL: "INFO"
+      VIGILCD_LOG_FORMAT: "json"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - vigilcd-network
+
+#volumes:
+#  vigilcd-repos:
+#    driver: local
+#  vigilcd-config:
+#    driver: local
+
+networks:
+  vigilcd-network:
+    driver: bridge
+
+# ===================================
+# WICHTIG: Host-Berechtigungen
+# ===================================
+#
+# Da Container als UID 1000 läuft:
+#
+# 1. SSH Keys müssen lesbar sein:
+#    sudo chown -R 1000:1000 ./ssh-keys
+#    chmod 700 ./ssh-keys
+#    chmod 600 ./ssh-keys/id_ed25519
+#
+# 2. Repos-Verzeichnis muss beschreibbar sein:
+#    sudo chown -R 1000:1000 ./repos
+#    chmod 755 ./repos
+#
+# 3. Config kann beliebig sein (read-only):
+#    chmod 644 ./config/config.yaml
+#
+# Siehe fix-permissions.sh für automatisches Setup
+# ===================================
