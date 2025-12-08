@@ -1,30 +1,38 @@
 """
-Secret Management für VigilCD.
-Unterstützt verschiedene Storage-Backend:
+Secret Management for VigilCD.
+Supports various storage backends:
 - Environment Variables
 - Docker Secrets
-- .env Dateien
-- Externe Provider (z.B. Vault)
+- .env files
+- External Providers (e.g., Vault)
 """
-import os
 import logging
-from typing import Optional, Dict
+import os
 from pathlib import Path
+from typing import Optional, Dict
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 
 class SecretManager:
     """
-    Zentrale Verwaltung von Secrets für Git-Auth und Docker-Credentials.
+    Central management of secrets for Git auth and Docker credentials.
     """
+
+    # Trusted Git hosting providers (hostname only, no subdomains)
+    TRUSTED_GIT_HOSTS = {
+        "github.com",
+        "gitlab.com",
+        "bitbucket.org",
+    }
 
     def __init__(self, backend: str = "env"):
         """
-        Initialisiere Secret Manager.
+        Initialize Secret Manager.
 
         Args:
-            backend: Storage-Backend ("env", "docker", "file")
+            backend: Storage backend ("env", "docker", "file")
         """
         self.backend = backend
         self._cache: Dict[str, str] = {}
@@ -34,7 +42,7 @@ class SecretManager:
             self._load_env_file()
 
     def _load_env_file(self, env_file: str = ".env.secrets"):
-        """Lädt Secrets aus einer .env.secrets Datei."""
+        """Loads secrets from a .env.secrets file."""
         env_path = Path(env_file)
         if not env_path.exists():
             logger.warning(f"Secret file not found: {env_file}")
@@ -53,19 +61,19 @@ class SecretManager:
 
     def get_secret(self, key: str, default: Optional[str] = None) -> Optional[str]:
         """
-        Ruft ein Secret ab.
+        Retrieves a secret.
 
         Args:
-            key: Secret-Schlüssel (z.B. "GITHUB_TOKEN")
-            default: Standardwert wenn nicht gefunden
+            key: Secret key (e.g., "GITHUB_TOKEN")
+            default: Default value if not found
 
         Returns:
-            Secret-Wert oder default
+            Secret value or default
         """
         if self.backend == "env":
             return os.getenv(key, default)
         elif self.backend == "docker":
-            # Docker Secrets liegen unter /run/secrets/{key}
+            # Docker Secrets are stored under /run/secrets/{key}
             secret_path = Path(f"/run/secrets/{key}")
             if secret_path.exists():
                 try:
@@ -78,35 +86,193 @@ class SecretManager:
 
         return default
 
-    def get_git_credentials(self, repo_url: str) -> Optional[Dict[str, str]]:
+    def parse_git_url(self, repo_url: str) -> Optional[Dict[str, str]]:
         """
-        Gibt Git-Credentials für eine Repository URL.
-        Unterstützt HTTPS (Token) und SSH (Key).
+        Securely parses a Git repository URL.
+
+        Args:
+            repo_url: Git repository URL (HTTPS or SSH)
 
         Returns:
-            {"type": "token", "value": "..."} oder {"type": "ssh_key", "path": "..."}
+            {
+                "scheme": "https" or "ssh",
+                "hostname": "github.com",
+                "path": "/user/repo.git",
+                "url": original URL
+            }
+            or None if parsing fails
+
+        Security:
+            - Properly extracts hostname from URL
+            - Handles both HTTPS and SSH formats
+            - No substring matching vulnerability
+
+        Examples:
+            >>> parse_git_url("https://github.com/user/repo.git")
+            {"scheme": "https", "hostname": "github.com", ...}
+
+            >>> parse_git_url("git@github.com:user/repo.git")
+            {"scheme": "ssh", "hostname": "github.com", ...}
+
+            >>> parse_git_url("https://evil.com?q=github.com")
+            None  # hostname is evil.com, not github.com
         """
-        if "github.com" in repo_url.lower():
+        try:
+            # Handle SSH URLs: git@github.com:user/repo.git
+            if repo_url.startswith("git@"):
+                # Parse SSH-style URL
+                parts = repo_url.replace("git@", "").split(":", 1)
+                if len(parts) != 2:
+                    logger.warning(f"Invalid SSH URL format: {repo_url}")
+                    return None
+
+                hostname = parts[0]
+                path = "/" + parts[1]
+
+                return {
+                    "scheme": "ssh",
+                    "hostname": hostname.lower(),
+                    "path": path,
+                    "url": repo_url
+                }
+
+            # Handle HTTPS URLs: https://github.com/user/repo.git
+            parsed = urlparse(repo_url)
+
+            if not parsed.scheme or not parsed.hostname:
+                logger.warning(f"Invalid URL format: {repo_url}")
+                return None
+
+            return {
+                "scheme": parsed.scheme.lower(),
+                "hostname": parsed.hostname.lower(),
+                "path": parsed.path,
+                "url": repo_url
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to parse Git URL: {repo_url}, error: {e}")
+            return None
+
+    def is_trusted_git_host(self, hostname: str) -> bool:
+        """
+        Checks if a hostname is a trusted Git hosting provider.
+
+        Args:
+            hostname: Hostname to check (e.g., "github.com")
+
+        Returns:
+            True if hostname is trusted, False otherwise
+
+        Security:
+            - Exact hostname match only (no substring matching)
+            - Case-insensitive comparison
+            - No wildcard subdomains (github.com != foo.github.com)
+
+        Examples:
+            >>> is_trusted_git_host("github.com")
+            True
+            >>> is_trusted_git_host("api.github.com")
+            False  # Subdomain not trusted
+            >>> is_trusted_git_host("github.com.evil.com")
+            False  # Not exact match
+        """
+        hostname_lower = hostname.lower()
+        return hostname_lower in self.TRUSTED_GIT_HOSTS
+
+    def get_git_credentials(self, repo_url: str) -> Optional[Dict[str, str]]:
+        """
+        Returns Git credentials for a repository URL.
+        Supports HTTPS (token) and SSH (key).
+
+        Args:
+            repo_url: Git repository URL
+
+        Returns:
+            {"type": "token", "value": "...", "host": "github.com"} or
+            {"type": "ssh_key", "path": "...", "host": "..."} or
+            None if URL is untrusted or credentials not available
+
+        Security:
+            - Uses secure URL parsing (no substring matching)
+            - Only returns credentials for trusted hosts
+            - Prevents credential leakage to malicious domains
+
+        Examples:
+            >>> get_git_credentials("https://github.com/user/repo.git")
+            {"type": "token", "value": "ghp_xxx", "host": "github.com"}
+
+            >>> get_git_credentials("https://evil.com?q=github.com")
+            None  # evil.com not trusted
+
+            >>> get_git_credentials("https://github.com.evil.com/repo")
+            None  # Subdomain attack blocked
+        """
+        # Parse URL securely
+        parsed = self.parse_git_url(repo_url)
+        if not parsed:
+            logger.warning(f"Could not parse repository URL: {repo_url}")
+            return None
+
+        hostname = parsed["hostname"]
+
+        # Security check: Only return credentials for trusted hosts
+        if not self.is_trusted_git_host(hostname):
+            logger.warning(
+                f"Refusing to provide credentials for untrusted host: {hostname}"
+            )
+            return None
+
+        # Return appropriate credentials based on host
+        if hostname == "github.com":
             token = self.get_secret("GITHUB_TOKEN")
             if token:
-                return {"type": "token", "value": token}
+                return {
+                    "type": "token",
+                    "value": token,
+                    "host": hostname
+                }
 
-        # SSH Key
+        elif hostname == "gitlab.com":
+            token = self.get_secret("GITLAB_TOKEN")
+            if token:
+                return {
+                    "type": "token",
+                    "value": token,
+                    "host": hostname
+                }
+
+        elif hostname == "bitbucket.org":
+            token = self.get_secret("BITBUCKET_TOKEN")
+            if token:
+                return {
+                    "type": "token",
+                    "value": token,
+                    "host": hostname
+                }
+
+        # Fallback: Try SSH key if no token available
         ssh_key_path = self.get_secret("SSH_KEY_PATH")
         if ssh_key_path and Path(ssh_key_path).exists():
-            return {"type": "ssh_key", "path": ssh_key_path}
+            return {
+                "type": "ssh_key",
+                "path": ssh_key_path,
+                "host": hostname
+            }
 
+        # No credentials available for this host
+        logger.debug(f"No credentials configured for {hostname}")
         return None
 
     def get_docker_credentials(self, registry: str = "default") -> Optional[Dict[str, str]]:
         """
-        Gibt Docker Registry Credentials.
+        Returns Docker registry credentials.
 
         Args:
-            registry: Registry-Name (z.B. "docker", "ghcr", "private")
+            registry: Registry name (e.g., "docker", "ghcr", "private")
 
         Returns:
-            {"username": "...", "password": "..."} oder None
+            {"username": "...", "password": "..."} or None
         """
         username = self.get_secret(f"DOCKER_{registry.upper()}_USERNAME")
         password = self.get_secret(f"DOCKER_{registry.upper()}_PASSWORD")
@@ -117,19 +283,19 @@ class SecretManager:
         return None
 
     def get_webhook_secret(self) -> Optional[str]:
-        """Gibt GitHub Webhook Secret."""
+        """Returns GitHub webhook secret."""
         return self.get_secret("GITHUB_WEBHOOK_SECRET")
 
     def store_secret(self, key: str, value: str, ttl_seconds: Optional[int] = None):
         """
-        Speichert ein Secret (nur für 'file' backend).
+        Stores a secret (only for 'file' backend).
 
-        WARNUNG: Für Production sollte ein echter Secrets-Manager (Vault, AWS Secrets Manager) verwendet werden.
+        WARNING: For production, use a real secrets manager (Vault, AWS Secrets Manager).
 
         Args:
-            key: Secret-Schlüssel
-            value: Secret-Wert
-            ttl_seconds: TTL in Sekunden (optional, nicht implementiert)
+            key: Secret key
+            value: Secret value
+            ttl_seconds: TTL in seconds (optional, not implemented)
         """
         if self.backend == "file":
             self._cache[key] = value
@@ -137,16 +303,38 @@ class SecretManager:
         else:
             logger.warning(f"Secret storage not supported for backend: {self.backend}")
 
+    def add_trusted_host(self, hostname: str):
+        """
+        Adds a trusted Git host to the whitelist.
 
-# Singleton-Instanz
+        Use with caution - only add hosts you fully control.
+
+        Args:
+            hostname: Exact hostname (e.g., "gitlab.company.com")
+
+        Security:
+            - Only add exact hostnames, no wildcards
+            - Validate hostname format before adding
+        """
+        hostname_lower = hostname.lower()
+
+        # Basic validation
+        if not hostname_lower or "." not in hostname_lower:
+            logger.error(f"Invalid hostname format: {hostname}")
+            return
+
+        self.TRUSTED_GIT_HOSTS.add(hostname_lower)
+        logger.info(f"Added trusted Git host: {hostname_lower}")
+
+
+# Singleton instance
 _secret_manager: Optional[SecretManager] = None
 
 
 def get_secret_manager(backend: str = None) -> SecretManager:
-    """Gibt die globale SecretManager-Instanz."""
+    """Returns the global SecretManager instance."""
     global _secret_manager
     if _secret_manager is None:
         _backend = backend or os.getenv("VIGILCD_SECRET_BACKEND", "env")
         _secret_manager = SecretManager(backend=_backend)
     return _secret_manager
-

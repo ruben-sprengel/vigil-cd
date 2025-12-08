@@ -176,7 +176,7 @@ class DeploymentService:
             # Get password from environment variable
             password = os.getenv(registry.password_env_var)
             if not password:
-                logger.error(f"Password env var not set: {registry.password_env_var}")
+                logger.error(f"Password env var not set.")
                 return False
 
             # Execute docker login mit DOCKER_HOST
