@@ -28,4 +28,4 @@ jobs:
           context: ./VigilCD/
           file: ./VigilCD/Dockerfile
           push: true
-          tags: ghcr.io/vigilcd:${{ github.event.release.tag_name }}
+          tags: ghcr.io/${{ github.repository }}:${{ github.event.release.tag_name }}
