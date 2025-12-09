@@ -1,0 +1,30 @@
+name: CI Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install uv and dependencies
+        run: |
+          pip install uv
+          uv sync --extra dev
+
+#      - name: Run Ruff Linter
+#        run: |
+#          uv run ruff check . --exit-zero
+
+      - name: Run Ruff Formatter (Check only)
+        run: |
+          ruff format . --check
