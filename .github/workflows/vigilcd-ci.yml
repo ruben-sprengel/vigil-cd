@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install uv and dependencies
+      - name: Install uv and dependencies
         run: |
           pip install uv
           uv sync --extra dev
@@ -28,6 +28,6 @@ jobs:
 #        run: |
 #          uv run ruff check . --exit-zero
 
-      - name: Run Ruff Formatter (Check only)
+      - name: Run Ruff Formatter
         run: |
-          ruff format . --check
+          uv run ruff format . --check
