@@ -889,7 +889,7 @@ cd vigilcd
 
 # Install dependencies (local development)
 pip install uv
-uv sync
+uv sync --extra dev
 
 # Run locally
 uv run uvicorn src.app:app --reload

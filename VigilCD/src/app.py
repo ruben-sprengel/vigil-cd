@@ -1,17 +1,20 @@
-from datetime import datetime
-import os
-import logging
 import json
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
+import logging
+import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any
+
 from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+from src.config_manager import ConfigManager
 from src.models import Config
 from src.service import DeploymentService
-from src.config_manager import ConfigManager
-from src.webhook_handler import GitHubWebhookHandler
-from contextlib import asynccontextmanager
 from src.state import state_manager
-
+from src.webhook_handler import GitHubWebhookHandler
 
 logger = logging.getLogger(__name__)
 
@@ -20,29 +23,30 @@ config_file = os.environ.get("CONFIG_PATH", "/home/vigilcd/src/config/config.yam
 config_manager = ConfigManager(config_file=config_file)
 logging.basicConfig(
     level=getattr(logging, config_manager.logging_config.level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 
 service = DeploymentService(config_manager)
 scheduler = BackgroundScheduler()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Startup/Shutdown Lifecycle für FastAPI App."""
-    logger.info(f"Starting VigilCD with check interval: {config_manager.scheduling.check_interval_minutes} min")
 
-    # Initial Sync Check
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
+    """Startup/Shutdown Lifecycle."""
+    logger.info(
+        f"Starting VigilCD with check interval: {config_manager.scheduling.check_interval_minutes} min"
+    )
+
     scheduled_sync_job()
 
-    # Register periodic job
     scheduler.add_job(
         scheduled_sync_job,
-        'interval',
+        "interval",
         minutes=config_manager.scheduling.check_interval_minutes,
-        id='git_sync_check',
-        name='Git Synchronization Check',
-        max_instances=1
+        id="git_sync_check",
+        name="Git Synchronization Check",
+        max_instances=1,
     )
 
     scheduler.start()
@@ -53,6 +57,7 @@ async def lifespan(app: FastAPI):
     if scheduler.running:
         scheduler.shutdown()
         logger.info("APScheduler shutdown completed")
+
 
 app = FastAPI(lifespan=lifespan, title="VigilCD - GitOps Deployment Agent")
 
@@ -69,9 +74,8 @@ app.add_middleware(
 )
 
 
-
-def scheduled_sync_job():
-    """Die Funktion, die regelmäßig vom Scheduler aufgerufen wird."""
+def scheduled_sync_job() -> None:
+    """Scheduled Job to check for repository updates and trigger deployments."""
     logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] --- Starting scheduled sync check ---")
 
     for repo_data in config_manager.repos_config:
@@ -80,113 +84,58 @@ def scheduled_sync_job():
             try:
                 service.check_and_update(repo_config, branch)
             except Exception as e:
-                logger.exception(f"Error in scheduled job for {repo_config.name}/{branch.name}: {e}")
+                logger.exception(
+                    f"Error in scheduled job for {repo_config.name}/{branch.name}: {e}"
+                )
+
 
 @app.get("/repos")
-def list_repos():
-    """Gibt alle konfigurierten Repositories zurück."""
+def list_repos() -> list[dict]:
+    """Endpoint to list all configured repositories.
+
+    Returns:
+        list[dict]: A list of dictionaries representing the configured repositories.
+
+    """
     return config_manager.repos_config
 
 
 @app.get("/health")
-def health_check():
-    """
-    Comprehensive health check endpoint.
+def health_check() -> dict:
+    """Endpoint to get the overall health status of the system.
 
     Returns:
-        - status: ok/degraded/error
-        - docker_daemon: running/unavailable
-        - scheduler: running/stopped
-        - last_check: timestamp of last scheduled check
-        - repo_states: summary of repository states
+        dict: A dictionary containing the health status and timestamp.
+
     """
-    # docker_available = service.is_docker_daemon_running()
-    # scheduler_running = scheduler.running
-
-    repo_states = {
-        "total": 0,
-        "syncing": 0,
-        "error": 0,
-        "idle": 0
-    }
-
-    # for repo_name, repo_data in state_manager.status.items():
-    #     for branch_name, branch_data in repo_data.model_dump().items():
-    #         repo_states["total"] += 1
-    #         sync_status = branch_data.get("sync_status", "unknown")
-    #         if sync_status in ["checking", "pulling"]:
-    #             repo_states["syncing"] += 1
-    #         elif sync_status == "error":
-    #             repo_states["error"] += 1
-    #         elif sync_status == "idle":
-    #             repo_states["idle"] += 1
-    #
-    #
-    # if not docker_available or not scheduler_running or repo_states["error"] > 0:
-    #     overall_status = "degraded" if docker_available and scheduler_running else "error"
-    # else:
-    #     overall_status = "ok"
-
-    return {
-        # "status": overall_status,
-        # "timestamp": datetime.now().isoformat(),
-        # "services": {
-        #     "docker_daemon": "running" if docker_available else "unavailable",
-        #     "scheduler": "running" if scheduler_running else "stopped",
-        # },
-        "repositories": repo_states,
-        # "config": {
-        #     "check_interval_minutes": config_manager.scheduling.check_interval_minutes,
-        #     "git_retry_count": config_manager.scheduling.git_retry_count,
-        # }
-    }
+    return {"health": "ok", "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/status")
-def get_status():
-    """Gibt den aktuellen Status aller Repos/Branches."""
+def get_status() -> dict:
+    """Endpoint to get the current deployment status.
+
+    Returns:
+        dict: A dictionary representing the current deployment status.
+
+    """
     return state_manager.status
 
 
 @app.get("/api/config")
-def get_config():
-    """Gibt nicht-sensitive Config-Werte zurück."""
+def get_config() -> dict:
+    """Endpoint to get non-sensitive configuration settings.
+
+    Returns:
+        dict: A dictionary containing non-sensitive configuration settings.
+
+    """
     return {
         "scheduling": config_manager.scheduling.dict(),
         "deployment": config_manager.deployment.dict(),
         "logging": config_manager.logging_config.dict(),
         "repos_count": len(config_manager.repos_config),
     }
-
-
-# @app.post("/api/repos/{repo_name}/branches/{branch_name}/deploy")
-# def trigger_manual_deploy(repo_name: str, branch_name: str, background_tasks: BackgroundTasks):
-#     """Triggert manuelles Deployment (optional mit Auth-Token später)."""
-#     # Finde Repo und Branch in Config
-#     repo_config = None
-#     branch_config = None
-#
-#     for repo_data in config_manager.repos_config:
-#         if repo_data.get("name") == repo_name:
-#             repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
-#             for branch_data in repo_data.get("branches", []):
-#                 if branch_data.get("name") == branch_name:
-#                     branch_config = repo_config.branches[repo_config.branches.index(
-#                         next(b for b in repo_config.branches if b.name == branch_name)
-#                     )]
-#                     break
-#             break
-#
-#     if not repo_config or not branch_config:
-#         raise HTTPException(status_code=404, detail="Repo/Branch not found")
-#
-#     # Starte Deployment im Hintergrund
-#     background_tasks.add_task(service.check_and_update, repo_config, branch_config)
-#
-#     return {
-#         "message": f"Manual deploy triggered for {repo_name}/{branch_name}",
-#         "status": "processing"
-#     }
 
 
 @app.post("/webhooks/github")
@@ -196,8 +145,7 @@ async def github_webhook(
     x_hub_signature_256: str = Header(None),
     x_github_event: str = Header(None),
 ):
-    """
-    GitHub Webhook Endpoint für Event-Driven Deployments.
+    """Endpoint to handle GitHub Webhooks.
 
     Erwartete Header:
     - X-Hub-Signature-256: HMAC-SHA256 Signatur des Payloads
@@ -239,9 +187,11 @@ async def github_webhook(
             repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
             for branch_data in repo_data.get("branches", []):
                 if branch_data.get("name") == branch_name:
-                    branch_config = repo_config.branches[repo_config.branches.index(
-                        next(b for b in repo_config.branches if b.name == branch_name)
-                    )]
+                    branch_config = repo_config.branches[
+                        repo_config.branches.index(
+                            next(b for b in repo_config.branches if b.name == branch_name)
+                        )
+                    ]
                     break
             break
 
@@ -249,7 +199,7 @@ async def github_webhook(
         logger.info(f"Webhook received for unconfigured repo/branch: {repo_name}/{branch_name}")
         return {
             "status": "skipped",
-            "reason": f"Repository {repo_name}/{branch_name} not configured"
+            "reason": f"Repository {repo_name}/{branch_name} not configured",
         }
 
     # Triggere Deployment im Hintergrund
@@ -258,9 +208,8 @@ async def github_webhook(
 
     return {
         "status": "processing",
-        "message": f"Deployment triggered via webhook for {repo_name}/{branch_name}"
+        "message": f"Deployment triggered via webhook for {repo_name}/{branch_name}",
     }
-
 
 
 if __name__ == "__main__":

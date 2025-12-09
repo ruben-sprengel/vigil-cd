@@ -9,12 +9,10 @@ services:
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /usr/bin/docker:/usr/bin/docker
       - ./ssh-keys:/home/vigilcd/.ssh:ro
       - ./repos:/home/vigilcd/repos
       - ./config/config.yaml:/home/vigilcd/src/config/config.yaml:ro
     environment:
-#      DOCKER_HOST: "tcp://host.docker.internal:2375"
       VIGILCD_CHECK_INTERVAL_MINUTES: "5"
       VIGILCD_GIT_RETRY_COUNT: "3"
       VIGILCD_RETRY_BACKOFF_FACTOR: "2.0"
@@ -44,12 +42,6 @@ services:
         max-file: "3"
     networks:
       - vigilcd-network
-
-#volumes:
-#  vigilcd-repos:
-#    driver: local
-#  vigilcd-config:
-#    driver: local
 
 networks:
   vigilcd-network:
