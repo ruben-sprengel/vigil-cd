@@ -1,8 +1,12 @@
 name: CI Checks
 
+permissions:
+  contents: read
+
 on:
   push:
   pull_request:
+  merge_group:
 
 jobs:
   ruff:
