@@ -839,8 +839,6 @@ For fewer API calls to Git hosting:
 VIGILCD_CHECK_INTERVAL_MINUTES=15  # Default: 5
 ```
 
-**Recommendation**: Use webhooks instead of frequent polling.
-
 ### Increase Timeout for Large Repos
 
 ```bash
@@ -918,7 +916,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Roadmap
 
 - [ ] Prometheus metrics endpoint
-- [ ] Multi-platform architecture support (ARM64)
+- [x] Multi-platform architecture support (ARM64)
+- [x] Ruff linting and formatting
+- [ ] Mypy static type checking
 - [ ] Web UI for configuration
 - [ ] Advanced health check strategies
 - [ ] ...
