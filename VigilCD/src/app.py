@@ -202,7 +202,6 @@ async def github_webhook(
             "reason": f"Repository {repo_name}/{branch_name} not configured",
         }
 
-    # Triggere Deployment im Hintergrund
     logger.info(f"Webhook triggered deployment for {repo_name}/{branch_name}")
     background_tasks.add_task(service.check_and_update, repo_config, branch_config)
 
