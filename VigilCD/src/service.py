@@ -48,6 +48,7 @@ class DockerConfig:
         Returns:
             Docker Host URL (e.g. unix:///var/run/docker.sock or tcp://localhost:2375)
         """
+
         if os.getenv("DOCKER_HOST"):
             docker_host = os.getenv("DOCKER_HOST")
             logger.info(f"Using Docker Host from env: {docker_host}")
@@ -72,12 +73,14 @@ class DeploymentService:
         Args:
             config_manager: Optional ConfigManager instance
         """
+
         self.config = config_manager or ConfigManager()
         self.docker_host = DockerConfig.get_docker_host()
         logger.info(f"DeploymentService initialized with Docker Host: {self.docker_host}")
 
     def _get_git_env(self, repo_conf: RepoConfig) -> dict[str, str]:
         """Creates environment variables for Git operations based on auth method."""
+
         env = os.environ.copy()
 
         if repo_conf.auth_method == "ssh":
@@ -103,6 +106,7 @@ class DeploymentService:
         Returns:
             True if Docker daemon is reachable, False otherwise.
         """
+
         try:
             timeout = self.config.deployment.docker_daemon_timeout_seconds
 
@@ -146,6 +150,7 @@ class DeploymentService:
             return value from func()
 
         """
+
         max_retries = max_retries or self.config.scheduling.git_retry_count
         backoff_factor = backoff_factor or self.config.scheduling.retry_backoff_factor
 
@@ -175,6 +180,7 @@ class DeploymentService:
             True if successful, False if login failed
 
         """
+
         if not registries:
             logger.debug("No registries configured, using default public docker.io")
             return True
@@ -230,6 +236,7 @@ class DeploymentService:
             registries: List of RegistryConfig objects
 
         """
+
         if not registries:
             return
 
@@ -246,12 +253,13 @@ class DeploymentService:
                 logger.warning(f"Docker logout failed for {registry.url}: {e}")
 
     def ensure_repo(self, repo_conf: RepoConfig, branch_conf: BranchConfig) -> tuple[bool, str]:
-        """Klont das Repo, wenn es nicht existiert, sonst gibt Pfad zurück.
+        """Clones the repository if it does not exist locally otherwise returns the existing path.
 
         Returns:
-            (is_new, repo_path): is_new = True wenn gerade geklont
+            (is_new, repo_path): is_new = True if cloned, False if already exists
 
         """
+
         repo_path = os.path.join(BASE_DIR, repo_conf.name, branch_conf.name)
 
         if os.path.exists(repo_path):
@@ -288,6 +296,7 @@ class DeploymentService:
         """Prüft auf neue Commits und führt bei Bedarf ein Update und Deployment durch.
         Mit Fehlerbehandlung und Retry-Logik.
         """
+
         repo_id = f"{repo_conf.name}/{branch_conf.name}"
         logger.info(f"Starting check_and_update for {repo_id}")
 
@@ -345,20 +354,13 @@ class DeploymentService:
 
                     def pull_changes():
                         try:
-                            # NEUER FIX: fetch und reset --hard für garantiertes Überschreiben
-
-                            # 1. Fetcht die neuesten Remote-Informationen
+                            # fetch und reset --hard for overwrite local changes
                             logger.info(f"Fetching changes for {repo_id}")
                             repo.remotes.origin.fetch(env=git_env)
 
-                            # 2. Setzt den lokalen Branch (HEAD) HART auf den Remote-Branch-Stand zurück.
-                            # Dies überschreibt JEDE lokale, verfolgte Datei.
                             remote_branch = f"origin/{branch_conf.name}"
                             repo.git.reset("--hard", remote_branch)
 
-                            # 3. Entfernt alle untracked files und directories, ABER SCHÜTZT .env
-                            # Dies stellt sicher, dass alle temporären Artefakte gelöscht werden,
-                            # die `.env` Datei jedoch erhalten bleibt, da sie umgebungsspezifisch ist.
                             logger.info(f"Cleaning repository, excluding .env: {repo_id}")
                             repo.git.clean("-fxd", "--exclude=.env")
 
@@ -366,7 +368,6 @@ class DeploymentService:
                                 f"Successfully reset and cleaned to {remote_branch} for {repo_id}"
                             )
                         except GitCommandError as e:
-                            # Wir geben hier den vollen GitCommandError als Ursache der GitOperationError weiter
                             raise GitOperationError(f"Fetch/Reset failed: {e}")
 
                     self._retry_with_backoff(pull_changes)
@@ -393,7 +394,9 @@ class DeploymentService:
             # 4. Prüfe auf fehlgeschlagene Deployments (Health Check)
             if not git_updated:
                 for target in branch_conf.targets:
-                    actual_state = self.check_actual_target_state(repo_path, target)
+                    actual_state = self.check_actual_target_state(
+                        repo_conf, branch_conf, repo_path, target
+                    )
                     if actual_state in ["stopped", "daemon_unavailable", "error_check"]:
                         logger.warning(f"Target {target.name} health check failed: {actual_state}")
                         deployment_required = True
@@ -417,9 +420,9 @@ class DeploymentService:
             logger.exception(f"Unexpected error in check_and_update for {repo_id}: {e}")
             state_manager.update_branch(repo_conf.name, branch_conf.name, sync_status="error")
 
-    def deploy_target(self, repo_conf, branch_conf, cwd: str, target: ComposeTarget):
-        """Führt Docker Compose Deployment durch.
-        Loggt sich in private Docker Registries ein, wenn konfiguriert.
+    def deploy_target(self, repo_conf, branch_conf, cwd: str, target: ComposeTarget) -> None:
+        """Runs Docker Compose deployment for the given target.
+        Logs in to registries if configured.
 
         Args:
             repo_conf: RepoConfig object mit Registries
@@ -474,7 +477,6 @@ class DeploymentService:
                 "-d",
             ]
 
-            # Conditionally add --build if configured
             if target.build_images:
                 cmd.append("--build")
 
@@ -483,7 +485,6 @@ class DeploymentService:
             timeout = self.config.deployment.docker_compose_timeout_seconds
             logger.debug(f"Docker compose command: {' '.join(cmd)}")
 
-            # Setze DOCKER_HOST in subprocess env für Cross-Platform Support
             env = os.environ.copy()
             env["DOCKER_HOST"] = self.docker_host
 
@@ -494,10 +495,9 @@ class DeploymentService:
                 text=True,
                 check=True,
                 timeout=timeout,
-                env=env,  # ← Übergebe DOCKER_HOST
+                env=env,
             )
 
-            # Optional: Logout nach erfolgreichem Deploy
             self.docker_logout_registries(repo_conf.registries)
 
             logger.info(f"Deployment successful for {target_id}")
@@ -536,17 +536,33 @@ class DeploymentService:
                 f"Unexpected error: {str(e)[:100]}",
             )
 
-    def check_actual_target_state(self, repo_path: str, target: ComposeTarget) -> str:
-        """Prüft den tatsächlichen Zustand der Services in der Compose-Datei."""
+    def check_actual_target_state(
+        self, repo_conf, branch_conf, repo_path: str, target: ComposeTarget
+    ) -> str:
+        """Checks the actual live state of the Docker Compose target.
+
+        Args:
+            repo_conf: RepoConfig object
+            branch_conf: BranchConfig object
+            repo_path: Path to the repository
+            target: Compose Target Config
+
+        Returns:
+            State string: "running", "stopped", "daemon_unavailable", "error_check
+
+
+        """
 
         if not self.is_docker_daemon_running():
             return "daemon_unavailable"
 
         try:
-            # Führt 'docker compose ps --services --filter status=running' aus
+            project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
             cmd = [
                 "docker",
                 "compose",
+                "-p",
+                project_name,
                 "-f",
                 target.file,
                 "ps",
@@ -555,7 +571,6 @@ class DeploymentService:
                 "status=running",
             ]
 
-            # Setze DOCKER_HOST für Cross-Platform Support
             env = os.environ.copy()
             env["DOCKER_HOST"] = self.docker_host
 
@@ -575,7 +590,6 @@ class DeploymentService:
                 logger.info(f"Target '{target.name}' running services: {running_services}")
                 return "running"
 
-            # Wenn der Exit Code 0 war, aber keine Services laufen, sind sie gestoppt/gecrased.
             if result.returncode == 0:
                 logger.warning(f"Target '{target.name}' is STOPPED (No running containers found).")
                 return "stopped"
