@@ -35,9 +35,10 @@ class LoggingConfig(BaseModel):
 
 
 class ConfigManager:
-    """Configuration Manager"""
+    """Configuration Manager."""
 
     def __init__(self, config_file: str = "./config/config.yaml"):
+        """Init the ConfigManager."""
         self.config_file = config_file
         self.raw_config = {}
         self.scheduling: SchedulingConfig
@@ -92,7 +93,7 @@ class ConfigManager:
         """Valdiates the loaded configuration."""
         if self.scheduling.check_interval_minutes < 1:
             raise ValueError("check_interval_minutes muss >= 1 sein")
-        if self.deployment.docker_compose_timeout_seconds < 10:
+        if self.deployment.docker_compose_timeout_seconds < 10:  # noqa: PLR2004
             raise ValueError("docker_compose_timeout_seconds muss >= 10 sein")
         logger.info("Config-Validierung erfolgreich")
 

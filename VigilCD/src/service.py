@@ -3,6 +3,7 @@
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import time
 from datetime import datetime
@@ -37,6 +38,7 @@ class DockerConfig:
     Supports:
     - Linux: Socket (/var/run/docker.sock)
     - Windows (WSL2/Docker Desktop): TCP (tcp://localhost:2375)
+
     """
 
     @staticmethod
@@ -47,8 +49,8 @@ class DockerConfig:
 
         Returns:
             Docker Host URL (e.g. unix:///var/run/docker.sock or tcp://localhost:2375)
-        """
 
+        """
         if os.getenv("DOCKER_HOST"):
             docker_host = os.getenv("DOCKER_HOST")
             logger.info(f"Using Docker Host from env: {docker_host}")
@@ -67,20 +69,50 @@ class DockerConfig:
 
 
 class DeploymentService:
+    """Service for managing deployments."""
+
     def __init__(self, config_manager: ConfigManager = None) -> None:
         """Initializes the DeploymentService with configuration.
 
         Args:
             config_manager: Optional ConfigManager instance
-        """
 
+        Returns:
+            None
+
+        """
         self.config = config_manager or ConfigManager()
         self.docker_host = DockerConfig.get_docker_host()
         logger.info(f"DeploymentService initialized with Docker Host: {self.docker_host}")
 
-    def _get_git_env(self, repo_conf: RepoConfig) -> dict[str, str]:
-        """Creates environment variables for Git operations based on auth method."""
+    def _get_executable_path(self, command: str) -> str:
+        """Finds the full path of an executable command.
 
+        Args:
+            command: Name of the command (e.g., "git", "docker")
+
+        Returns:
+            Full path to the executable
+
+        Raises:
+            DeploymentError: If the command is not found in PATH.
+
+        """
+        full_path = shutil.which(command)
+        if not full_path:
+            raise DeploymentError(f"Executable '{command}' not found in PATH.")
+        return full_path
+
+    def _get_git_env(self, repo_conf: RepoConfig) -> dict[str, str]:
+        """Creates environment variables for Git operations based on auth method.
+
+        Args:
+            repo_conf: RepoConfig object
+
+        Returns:
+            dict with environment variables for Git commands
+
+        """
         env = os.environ.copy()
 
         if repo_conf.auth_method == "ssh":
@@ -105,16 +137,16 @@ class DeploymentService:
 
         Returns:
             True if Docker daemon is reachable, False otherwise.
-        """
 
+        """
         try:
             timeout = self.config.deployment.docker_daemon_timeout_seconds
-
+            docker_cmd = self._get_executable_path("docker")
             env = os.environ.copy()
             env["DOCKER_HOST"] = self.docker_host
 
-            subprocess.run(
-                ["docker", "info"],
+            subprocess.run(  # noqa: S603
+                [docker_cmd, "info"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -123,7 +155,7 @@ class DeploymentService:
             )
             logger.info(f"Docker daemon is running on {self.docker_host}")
             return True
-        except FileNotFoundError:
+        except DeploymentError:
             logger.error("Docker command not found. Is Docker installed and in PATH?")
             return False
         except subprocess.CalledProcessError as e:
@@ -150,7 +182,6 @@ class DeploymentService:
             return value from func()
 
         """
-
         max_retries = max_retries or self.config.scheduling.git_retry_count
         backoff_factor = backoff_factor or self.config.scheduling.retry_backoff_factor
 
@@ -171,6 +202,7 @@ class DeploymentService:
 
     def docker_login_registries(self, registries: list | None) -> bool:
         """Logs in to private Docker registries before deployment.
+
         Public registries are skipped (username=None).
 
         Args:
@@ -180,10 +212,15 @@ class DeploymentService:
             True if successful, False if login failed
 
         """
-
         if not registries:
             logger.debug("No registries configured, using default public docker.io")
             return True
+
+        try:
+            docker_cmd = self._get_executable_path("docker")
+        except DeploymentError as e:
+            logger.error(f"Docker login failed: {e}")
+            return False
 
         for registry in registries:
             # Skip public registries (no username)
@@ -198,7 +235,7 @@ class DeploymentService:
                 return False
 
             cmd = [
-                "docker",
+                docker_cmd,
                 "login",
                 "-u",
                 registry.username,
@@ -211,7 +248,7 @@ class DeploymentService:
                 env = os.environ.copy()
                 env["DOCKER_HOST"] = self.docker_host
 
-                result = subprocess.run(
+                subprocess.run(  # noqa: S603
                     cmd,
                     capture_output=True,
                     text=True,
@@ -235,9 +272,17 @@ class DeploymentService:
         Args:
             registries: List of RegistryConfig objects
 
-        """
+        Returns:
+            None
 
+        """
         if not registries:
+            return
+
+        try:
+            docker_cmd = self._get_executable_path("docker")
+        except DeploymentError:
+            logger.warning("Docker executable not found, skipping logout.")
             return
 
         for registry in registries:
@@ -246,8 +291,8 @@ class DeploymentService:
                 continue
 
             try:
-                cmd = ["docker", "logout", registry.url]
-                subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=10)
+                cmd = [docker_cmd, "logout", registry.url]
+                subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=10)  # noqa: S603
                 logger.debug(f"Docker logout for {registry.url}")
             except Exception as e:
                 logger.warning(f"Docker logout failed for {registry.url}: {e}")
@@ -259,7 +304,6 @@ class DeploymentService:
             (is_new, repo_path): is_new = True if cloned, False if already exists
 
         """
-
         repo_path = os.path.join(BASE_DIR, repo_conf.name, branch_conf.name)
 
         if os.path.exists(repo_path):
@@ -284,19 +328,23 @@ class DeploymentService:
             except Exception as e:
                 # Cleanup bei Fehler
                 if os.path.exists(repo_path):
-                    import shutil
-
                     shutil.rmtree(repo_path)
-                raise GitOperationError(f"Clone failed: {e}")
+                raise GitOperationError(f"Clone failed: {e}") from e
 
         self._retry_with_backoff(clone)
         return True, repo_path
 
-    def check_and_update(self, repo_conf: RepoConfig, branch_conf: BranchConfig):
-        """Prüft auf neue Commits und führt bei Bedarf ein Update und Deployment durch.
-        Mit Fehlerbehandlung und Retry-Logik.
-        """
+    def check_and_update(self, repo_conf: RepoConfig, branch_conf: BranchConfig) -> None:  # noqa: PLR0915
+        """Checks for Git updates and deploys if necessary.
 
+        Args:
+            repo_conf: RepoConfig object
+            branch_conf: BranchConfig object
+
+        Returns:
+            None
+
+        """
         repo_id = f"{repo_conf.name}/{branch_conf.name}"
         logger.info(f"Starting check_and_update for {repo_id}")
 
@@ -335,7 +383,7 @@ class DeploymentService:
                             )
                         return ls_remote_output
                     except GitCommandError as e:
-                        raise GitOperationError(f"ls-remote failed: {e}")
+                        raise GitOperationError(f"ls-remote failed: {e}") from e
 
                 ls_remote_output = self._retry_with_backoff(fetch_remote_info)
                 remote_commit_hash = ls_remote_output.split()[0]
@@ -368,7 +416,7 @@ class DeploymentService:
                                 f"Successfully reset and cleaned to {remote_branch} for {repo_id}"
                             )
                         except GitCommandError as e:
-                            raise GitOperationError(f"Fetch/Reset failed: {e}")
+                            raise GitOperationError(f"Fetch/Reset failed: {e}") from e
 
                     self._retry_with_backoff(pull_changes)
 
@@ -422,6 +470,7 @@ class DeploymentService:
 
     def deploy_target(self, repo_conf, branch_conf, cwd: str, target: ComposeTarget) -> None:
         """Runs Docker Compose deployment for the given target.
+
         Logs in to registries if configured.
 
         Args:
@@ -430,8 +479,10 @@ class DeploymentService:
             cwd: Working Directory für Docker Compose
             target: Compose Target Config
 
-        """
+        Returns:
+            None
 
+        """
         if not self.is_docker_daemon_running():
             logger.error(f"Docker daemon not available for {target.name}")
             state_manager.update_target(
@@ -455,6 +506,8 @@ class DeploymentService:
         )
 
         try:
+            docker_path = self._get_executable_path("docker")
+
             if not self.docker_login_registries(repo_conf.registries):
                 state_manager.update_target(
                     repo_conf.name,
@@ -467,7 +520,7 @@ class DeploymentService:
 
             project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
             cmd = [
-                "docker",
+                docker_path,
                 "compose",
                 "-p",
                 project_name,
@@ -488,7 +541,7 @@ class DeploymentService:
             env = os.environ.copy()
             env["DOCKER_HOST"] = self.docker_host
 
-            result = subprocess.run(
+            subprocess.run(  # noqa: S603
                 cmd,
                 cwd=cwd,
                 capture_output=True,
@@ -507,7 +560,7 @@ class DeploymentService:
 
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr[-500:] if e.stderr else e.stdout[-500:]
-            logger.error(f"Deployment failed for {target_id}: {error_msg}")
+            logger.exception(f"Deployment failed for {target_id}: {error_msg}")
             state_manager.update_target(
                 repo_conf.name,
                 branch_conf.name,
@@ -517,7 +570,7 @@ class DeploymentService:
             )
 
         except subprocess.TimeoutExpired:
-            logger.error(f"Deployment timeout ({timeout}s) for {target_id}")
+            logger.exception(f"Deployment timeout ({timeout}s) for {target_id}")
             state_manager.update_target(
                 repo_conf.name,
                 branch_conf.name,
@@ -550,16 +603,15 @@ class DeploymentService:
         Returns:
             State string: "running", "stopped", "daemon_unavailable", "error_check
 
-
         """
-
         if not self.is_docker_daemon_running():
             return "daemon_unavailable"
 
         try:
+            docker_path = self._get_executable_path("docker")
             project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
             cmd = [
-                "docker",
+                docker_path,
                 "compose",
                 "-p",
                 project_name,
@@ -574,7 +626,7 @@ class DeploymentService:
             env = os.environ.copy()
             env["DOCKER_HOST"] = self.docker_host
 
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603
                 cmd,
                 cwd=repo_path,
                 capture_output=True,
@@ -597,5 +649,5 @@ class DeploymentService:
             return "error_check"
 
         except Exception as e:
-            logger.error(f"Failed to check live Docker state for {target.name}: {e}")
+            logger.exception(f"Failed to check live Docker state for {target.name}: {e}")
             return "error_check"

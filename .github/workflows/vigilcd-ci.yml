@@ -28,9 +28,9 @@ jobs:
           pip install uv
           uv sync --extra dev
 
-#      - name: Run Ruff Linter
-#        run: |
-#          uv run ruff check . --exit-zero
+      - name: Run Ruff Linter
+        run: |
+          uv run ruff check . --exit-zero
 
       - name: Run Ruff Formatter
         run: |

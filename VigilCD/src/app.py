@@ -1,3 +1,5 @@
+"""Main Application Module."""
+
 import json
 import logging
 import os
@@ -166,9 +168,9 @@ async def github_webhook(
 
     try:
         payload = json.loads(request_body.decode("utf-8"))
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         logger.error("Failed to parse webhook payload JSON")
-        raise HTTPException(status_code=400, detail="Invalid JSON")
+        raise HTTPException(status_code=400, detail="Invalid JSON") from e
 
     # Parse Push-Event
     event_info = GitHubWebhookHandler.parse_push_event(payload)

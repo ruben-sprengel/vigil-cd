@@ -1,10 +1,4 @@
-"""Secret Management for VigilCD.
-Supports various storage backends:
-- Environment Variables
-- Docker Secrets
-- .env files
-- External Providers (e.g., Vault)
-"""
+"""Secret Management for VigilCD."""
 
 import logging
 import os
@@ -17,14 +11,13 @@ logger = logging.getLogger(__name__)
 class SecretManager:
     """Central management of secrets for Git auth and Docker credentials."""
 
-    # Trusted Git hosting providers (hostname only, no subdomains)
     TRUSTED_GIT_HOSTS = {
         "github.com",
         "gitlab.com",
         "bitbucket.org",
     }
 
-    def __init__(self, backend: str = "env"):
+    def __init__(self, backend: str = "env") -> None:
         """Initialize Secret Manager.
 
         Args:
@@ -38,8 +31,13 @@ class SecretManager:
         if backend == "file":
             self._load_env_file()
 
-    def _load_env_file(self, env_file: str = ".env.secrets"):
-        """Loads secrets from a .env.secrets file."""
+    def _load_env_file(self, env_file: str = ".env.secrets") -> None:
+        """Loads secrets from a .env.secrets file.
+
+        Args:
+            env_file: Path to the .env file
+
+        """
         env_path = Path(env_file)
         if not env_path.exists():
             logger.warning(f"Secret file not found: {env_file}")
@@ -48,7 +46,7 @@ class SecretManager:
         try:
             with open(env_path) as f:
                 for line in f:
-                    line = line.strip()
+                    line = line.strip()  # noqa: PLW2901
                     if line and not line.startswith("#"):
                         key, _, value = line.partition("=")
                         self._cache[key.strip()] = value.strip()
@@ -70,7 +68,6 @@ class SecretManager:
         if self.backend == "env":
             return os.getenv(key, default)
         elif self.backend == "docker":
-            # Docker Secrets are stored under /run/secrets/{key}
             secret_path = Path(f"/run/secrets/{key}")
             if secret_path.exists():
                 try:
@@ -102,24 +99,13 @@ class SecretManager:
             - Properly extracts hostname from URL
             - Handles both HTTPS and SSH formats
             - No substring matching vulnerability
-
-        Examples:
-            >>> parse_git_url("https://github.com/user/repo.git")
-            {"scheme": "https", "hostname": "github.com", ...}
-
-            >>> parse_git_url("git@github.com:user/repo.git")
-            {"scheme": "ssh", "hostname": "github.com", ...}
-
-            >>> parse_git_url("https://evil.com?q=github.com")
-            None  # hostname is evil.com, not github.com
-
         """
         try:
             # Handle SSH URLs: git@github.com:user/repo.git
             if repo_url.startswith("git@"):
                 # Parse SSH-style URL
                 parts = repo_url.replace("git@", "").split(":", 1)
-                if len(parts) != 2:
+                if len(parts) != 2:  # noqa: PLR2004
                     logger.warning(f"Invalid SSH URL format: {repo_url}")
                     return None
 
@@ -164,21 +150,13 @@ class SecretManager:
             - Exact hostname match only (no substring matching)
             - Case-insensitive comparison
             - No wildcard subdomains (github.com != foo.github.com)
-
-        Examples:
-            >>> is_trusted_git_host("github.com")
-            True
-            >>> is_trusted_git_host("api.github.com")
-            False  # Subdomain not trusted
-            >>> is_trusted_git_host("github.com.evil.com")
-            False  # Not exact match
-
         """
         hostname_lower = hostname.lower()
         return hostname_lower in self.TRUSTED_GIT_HOSTS
 
-    def get_git_credentials(self, repo_url: str) -> dict[str, str] | None:
+    def get_git_credentials(self, repo_url: str) -> dict[str, str] | None:  # noqa: PLR0911
         """Returns Git credentials for a repository URL.
+
         Supports HTTPS (token) and SSH (key).
 
         Args:
@@ -193,19 +171,7 @@ class SecretManager:
             - Uses secure URL parsing (no substring matching)
             - Only returns credentials for trusted hosts
             - Prevents credential leakage to malicious domains
-
-        Examples:
-            >>> get_git_credentials("https://github.com/user/repo.git")
-            {"type": "token", "value": "ghp_xxx", "host": "github.com"}
-
-            >>> get_git_credentials("https://evil.com?q=github.com")
-            None  # evil.com not trusted
-
-            >>> get_git_credentials("https://github.com.evil.com/repo")
-            None  # Subdomain attack blocked
-
         """
-        # Parse URL securely
         parsed = self.parse_git_url(repo_url)
         if not parsed:
             logger.warning(f"Could not parse repository URL: {repo_url}")
@@ -306,13 +272,12 @@ class SecretManager:
         logger.info(f"Added trusted Git host: {hostname_lower}")
 
 
-# Singleton instance
 _secret_manager: SecretManager | None = None
 
 
 def get_secret_manager(backend: str = None) -> SecretManager:
     """Returns the global SecretManager instance."""
-    global _secret_manager
+    global _secret_manager  # noqa: PLW0603
     if _secret_manager is None:
         _backend = backend or os.getenv("VIGILCD_SECRET_BACKEND", "env")
         _secret_manager = SecretManager(backend=_backend)
