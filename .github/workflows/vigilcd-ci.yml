@@ -1,4 +1,4 @@
-name: CI Checks
+name: VigilCD CI Checks
 
 permissions:
   contents: read
