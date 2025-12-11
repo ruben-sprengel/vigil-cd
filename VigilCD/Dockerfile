@@ -59,10 +59,12 @@ RUN mkdir -p /home/vigilcd/.ssh && chmod 700 /home/vigilcd/.ssh && \
     chmod 600 /home/vigilcd/.ssh/known_hosts
 
 RUN mkdir -p /home/vigilcd/src/config && \
-    chown -R vigilcd:vigilcd /home/vigilcd/src
+    chown -R vigilcd:vigilcd /home/vigilcd/src/config
 
-RUN mkdir -p /home/vigilcd/repos && \
-    chown -R vigilcd:vigilcd /home/vigilcd/repos
+COPY --chown=vigilcd:vigilcd config.template.yaml /home/vigilcd/src/config/config.yaml
+
+RUN mkdir -p /home/vigilcd/src/repos && \
+    chown -R vigilcd:vigilcd /home/vigilcd/src/repos
 
 RUN chown -R vigilcd:vigilcd /home/vigilcd
 

@@ -37,7 +37,7 @@ class LoggingConfig(BaseModel):
 class ConfigManager:
     """Configuration Manager."""
 
-    def __init__(self, config_file: str = "./config/config.yaml"):
+    def __init__(self, config_file: str) -> None:
         """Init the ConfigManager."""
         self.config_file = config_file
         self.raw_config = {}
