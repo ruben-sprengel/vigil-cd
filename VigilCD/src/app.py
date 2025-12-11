@@ -6,7 +6,7 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
@@ -144,8 +144,8 @@ def get_config() -> dict:
 async def github_webhook(
     request_body: bytes,
     background_tasks: BackgroundTasks,
-    x_hub_signature_256: str = Header(None),
-    x_github_event: str = Header(None),
+    x_hub_signature_256: Annotated[str | None, Header()] = None,
+    x_github_event: Annotated[str | None, Header()] = None,
 ):
     """Endpoint to handle GitHub Webhooks.
 
