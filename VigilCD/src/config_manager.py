@@ -66,7 +66,18 @@ class ConfigManager:
         self.scheduling = SchedulingConfig()  # Keine YAML Params
         self.deployment = DeploymentConfig()  # Keine YAML Params
         self.logging_config = LoggingConfig()  # Keine YAML Params
-        self.repos_config = self.raw_config.get("repos", [])
+
+        self.repos_config = self.raw_config.get("repos") if self.raw_config else []
+
+        if self.repos_config is None:
+            self.repos_config = []
+            logger.warning("No 'repos' key found in config.yaml - no repositories configured")
+        elif not isinstance(self.repos_config, list):
+            logger.error("'repos' must be a list in config.yaml")
+            self.repos_config = []
+
+        if not self.repos_config:
+            logger.warning("No repositories configured in config.yaml")
 
     def _apply_env_overrides(self) -> None:
         """Loads Overrides from Environment Variables."""

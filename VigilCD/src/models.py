@@ -12,16 +12,16 @@ class ComposeTarget(BaseModel):
     Attributes:
         name (str): The name of the target.
         file (str): The file associated with the target.
-        deploy (bool): Indicates whether the target should be deployed. Defaults to True.
-        build_images (bool): Whether to rebuild Docker images on deploy. Defaults to True.
+        deploy (bool): Indicates whether the target should be deployed. Defaults to False.
+        build_images (bool): Whether to rebuild Docker images on deploy. Defaults to False.
                             Set to False for faster deployments if only configuration changed.
 
     """
 
     name: str
     file: str
-    deploy: bool = True
-    build_images: bool = True
+    deploy: bool = False
+    build_images: bool = False
 
 
 class BranchConfig(BaseModel):
@@ -29,11 +29,13 @@ class BranchConfig(BaseModel):
 
     Attributes:
         name (str): The name of the branch.
+        sync_enabled (bool): Indicates whether synchronization is enabled for the branch. If False, the branch will be skipped during sync operations and deployments.
         targets (list[ComposeTarget]): A list of compose targets associated with the branch.
 
     """
 
     name: str
+    sync_enabled: bool
     targets: list[ComposeTarget]
 
 

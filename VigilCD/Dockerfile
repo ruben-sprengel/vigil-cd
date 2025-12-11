@@ -61,10 +61,13 @@ RUN mkdir -p /home/vigilcd/.ssh && chmod 700 /home/vigilcd/.ssh && \
 RUN mkdir -p /home/vigilcd/src/config && \
     chown -R vigilcd:vigilcd /home/vigilcd/src/config
 
-COPY --chown=vigilcd:vigilcd config.template.yaml /home/vigilcd/src/config/config.yaml
+#COPY --chown=vigilcd:vigilcd config.template.yaml /home/vigilcd/src/config/config.yaml
 
 RUN mkdir -p /home/vigilcd/src/repos && \
     chown -R vigilcd:vigilcd /home/vigilcd/src/repos
+
+COPY --chown=vigilcd:vigilcd entrypoint.sh /home/vigilcd/entrypoint.sh
+RUN chmod +x /home/vigilcd/entrypoint.sh
 
 RUN chown -R vigilcd:vigilcd /home/vigilcd
 
@@ -72,5 +75,7 @@ USER vigilcd
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["/home/vigilcd/entrypoint.sh"]
 
 CMD ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]

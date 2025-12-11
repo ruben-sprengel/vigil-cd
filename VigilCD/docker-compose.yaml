@@ -9,18 +9,23 @@ services:
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./ssh-keys:/home/vigilcd/.ssh:ro
-      - ./repos:/home/vigilcd/src/repos
-      - ./config:/home/vigilcd/src/config
+      - ./docker-data/ssh-keys:/home/vigilcd/.ssh:ro
+      - ./docker-data/repos:/home/vigilcd/src/repos
+      - ./docker-data/config:/home/vigilcd/src/config
+    group_add:
+      - ${DOCKER_GID:-999}
     environment:
-      VIGILCD_CHECK_INTERVAL_MINUTES: "5"
-      VIGILCD_GIT_RETRY_COUNT: "3"
-      VIGILCD_RETRY_BACKOFF_FACTOR: "2.0"
-      VIGILCD_DOCKER_TIMEOUT: "300"
-      VIGILCD_GIT_TIMEOUT: "60"
-      VIGILCD_DOCKER_DAEMON_TIMEOUT: "10"
-      VIGILCD_LOG_LEVEL: "INFO"
-      VIGILCD_LOG_FORMAT: "json"
+      # Scheduling
+      VIGILCD_CHECK_INTERVAL_MINUTES: "${VIGILCD_CHECK_INTERVAL_MINUTES:-5}"
+      VIGILCD_GIT_RETRY_COUNT: "${VIGILCD_GIT_RETRY_COUNT:-3}"
+      VIGILCD_RETRY_BACKOFF_FACTOR: "${VIGILCD_RETRY_BACKOFF_FACTOR:-2.0}"
+      # Timeouts
+      VIGILCD_DOCKER_TIMEOUT: "${VIGILCD_DOCKER_TIMEOUT:-300}"
+      VIGILCD_GIT_TIMEOUT: "${VIGILCD_GIT_TIMEOUT:-60}"
+      VIGILCD_DOCKER_DAEMON_TIMEOUT: "${VIGILCD_DOCKER_DAEMON_TIMEOUT:-10}"
+      # Logging
+      VIGILCD_LOG_LEVEL: "${VIGILCD_LOG_LEVEL:-INFO}"
+      VIGILCD_LOG_FORMAT: "${VIGILCD_LOG_FORMAT:-json}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -48,22 +53,21 @@ networks:
     driver: bridge
 
 # ===================================
-# WICHTIG: Host-Berechtigungen
+# How it works:
 # ===================================
 #
-# Da Container als UID 1000 läuft:
+# 1. First start:
+#    - docker-data/config/ is empty
+#    - Entrypoint copies config.template.yaml → config.yaml
+#    - App starts with template config
 #
-# 1. SSH Keys müssen lesbar sein:
-#    sudo chown -R 1000:1000 ./ssh-keys
-#    chmod 700 ./ssh-keys
-#    chmod 600 ./ssh-keys/id_ed25519
+# 2. Subsequent starts:
+#    - config.yaml exists in docker-data/config/
+#    - Entrypoint uses existing config
+#    - User can edit config.yaml on host
 #
-# 2. Repos-Verzeichnis muss beschreibbar sein:
-#    sudo chown -R 1000:1000 ./repos
-#    chmod 755 ./repos
+# 3. To reset config:
+#    rm docker-data/config/config.yaml
+#    docker-compose restart vigilcd
 #
-# 3. Config kann beliebig sein (read-only):
-#    chmod 644 ./config/config.yaml
-#
-# Siehe fix-permissions.sh für automatisches Setup
 # ===================================

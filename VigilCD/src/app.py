@@ -80,9 +80,19 @@ def scheduled_sync_job() -> None:
     """Scheduled Job to check for repository updates and trigger deployments."""
     logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] --- Starting scheduled sync check ---")
 
+    if not config_manager.repos_config:
+        logger.warning("No repositories configured. Add repos to config.yaml")
+        return
+
     for repo_data in config_manager.repos_config:
         repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
         for branch in repo_config.branches:
+            if not branch.sync_enabled:
+                logger.info(
+                    f"Sync incl. deploy disabled for {repo_config.name}/{branch.name}, skipping"
+                )
+                continue
+
             try:
                 service.check_and_update(repo_config, branch)
             except Exception as e:
