@@ -45,6 +45,7 @@ jobs:
 
     - name: Install uv and Dependencies
       shell: bash
+      working-directory: ./VigilCD/
       run: |
         pip install uv
         uv sync --all-extras --dev
