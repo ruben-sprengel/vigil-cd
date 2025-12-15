@@ -13,12 +13,12 @@ services:
       - ./docker-data/repos:/home/vigilcd/src/repos
       - ./docker-data/config:/home/vigilcd/src/config
     group_add:
-      - ${DOCKER_GID:-999}
+      - ${DOCKER_GID:-1000}
     environment:
       # Scheduling
-      VIGILCD_CHECK_INTERVAL_MINUTES: "${VIGILCD_CHECK_INTERVAL_MINUTES:-5}"
+      VIGILCD_CHECK_INTERVAL_MINUTES: "${VIGILCD_CHECK_INTERVAL_MINUTES:-1}"
       VIGILCD_GIT_RETRY_COUNT: "${VIGILCD_GIT_RETRY_COUNT:-3}"
-      VIGILCD_RETRY_BACKOFF_FACTOR: "${VIGILCD_RETRY_BACKOFF_FACTOR:-2.0}"
+      VIGILCD_RETRY_BACKOFF_FACTOR: "${VIGILCD_RETRY_BACKOFF_FACTOR:-2}"
       # Timeouts
       VIGILCD_DOCKER_TIMEOUT: "${VIGILCD_DOCKER_TIMEOUT:-300}"
       VIGILCD_GIT_TIMEOUT: "${VIGILCD_GIT_TIMEOUT:-60}"

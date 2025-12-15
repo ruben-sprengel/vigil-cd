@@ -45,31 +45,48 @@ class DockerConfig:
     def get_docker_host() -> str:
         """Gets the appropriate Docker Host URL based on the platform.
 
-        Falls back to defaults if not set.
+        Wichtig: Wenn DOCKER_HOST über die Umgebung gesetzt ist, wird dieser Wert
+        bevorzugt, um Remote-Deployment zu ermöglichen.
 
         Returns:
-            Docker Host URL (e.g. unix:///var/run/docker.sock or tcp://localhost:2375)
-
+            Docker Host URL
         """
         if os.getenv("DOCKER_HOST"):
             docker_host = os.getenv("DOCKER_HOST")
             logger.info(f"Using Docker Host from env: {docker_host}")
             return docker_host
 
-        if platform.system() == "Windows":
-            logger.info("Windows detected: Using Docker Desktop TCP (localhost:2375)")
-            return "tcp://localhost:2375"
+        is_wsl = os.getenv("VIGILCD_LOCAL_WSL") is not None
+        if is_wsl or platform.system() != "Windows":
+            if os.path.exists("/var/run/docker.sock"):
+                logger.info("Linux/WSL detected: Using Docker Socket (/var/run/docker.sock)")
+                return "unix:///var/run/docker.sock"
 
-        if os.path.exists("/var/run/docker.sock"):
-            logger.info("Linux detected: Using Docker Socket (/var/run/docker.sock)")
+            logger.warning("Could not find Unix socket, falling back to default Linux socket.")
             return "unix:///var/run/docker.sock"
 
-        logger.warning("Could not determine Docker Host, using default socket")
+        if platform.system() == "Windows":
+            if os.getenv("VIGILCD_LOCAL_WINDOWS_TCP"):
+                logger.info(
+                    "Windows detected, VIGILCD_LOCAL_WINDOWS_TCP set. Using TCP (127.0.0.1:2375)"
+                )
+                return "tcp://127.0.0.1:2375"
+
+            logger.info(
+                "Windows detected: Using Docker Desktop Named Pipe (npipe://./pipe/docker_engine)"
+            )
+            return "npipe://./pipe/docker_engine"
+
+        logger.warning(
+            "Could not determine Docker Host, using default Linux socket as generic fallback."
+        )
         return "unix:///var/run/docker.sock"
 
 
 class DeploymentService:
     """Service for managing deployments."""
+
+    LOCAL_HOST_PREFIXES = ("unix://", "npipe://", "tcp://127.0.0.1")
 
     def __init__(self, config_manager: ConfigManager = None) -> None:
         """Initializes the DeploymentService with configuration.
@@ -85,7 +102,8 @@ class DeploymentService:
         self.docker_host = DockerConfig.get_docker_host()
         logger.info(f"DeploymentService initialized with Docker Host: {self.docker_host}")
 
-    def _get_executable_path(self, command: str) -> str:
+    @staticmethod
+    def _get_executable_path(command: str) -> str:
         """Finds the full path of an executable command.
 
         Args:
@@ -101,7 +119,35 @@ class DeploymentService:
         full_path = shutil.which(command)
         if not full_path:
             raise DeploymentError(f"Executable '{command}' not found in PATH.")
+        logger.debug(full_path)
         return full_path
+
+    def _get_docker_env_with_remote_support(self) -> dict[str, str]:
+        """Creates an environment dict for Docker commands with remote support.
+
+        Returns:
+            dict with environment variables for Docker commands
+
+        """
+        env = os.environ.copy()
+
+        # Prüfe, ob self.docker_host ein expliziter Remote-Host ist ODER
+        # ob der Benutzer DOCKER_HOST in der Shell gesetzt hat (dieser Wert landet in self.docker_host)
+        is_local_default = any(self.docker_host.startswith(p) for p in self.LOCAL_HOST_PREFIXES)
+
+        if is_local_default and not os.getenv("DOCKER_HOST"):
+            # Dies ist ein automatisch bestimmter lokaler Standard-Socket/Pipe.
+            # Wir entfernen DOCKER_HOST, damit der Docker-Client den lokalen Standardmechanismus nutzt.
+            if "DOCKER_HOST" in env:
+                del env["DOCKER_HOST"]
+            logger.debug("DOCKER_HOST removed from subprocess env to use local default mechanism.")
+        else:
+            # Dies ist entweder ein explizit aus der Shell übernommener Host
+            # oder ein konfigurierter TCP-Host (Remote oder lokaler Override).
+            env["DOCKER_HOST"] = self.docker_host
+            logger.debug(f"DOCKER_HOST set to: {self.docker_host}")
+
+        return env
 
     def _get_git_env(self, repo_conf: RepoConfig) -> dict[str, str]:
         """Creates environment variables for Git operations based on auth method.
@@ -142,8 +188,7 @@ class DeploymentService:
         try:
             timeout = self.config.deployment.docker_daemon_timeout_seconds
             docker_cmd = self._get_executable_path("docker")
-            env = os.environ.copy()
-            env["DOCKER_HOST"] = self.docker_host
+            env = self._get_docker_env_with_remote_support()
 
             subprocess.run(  # noqa: S603
                 [docker_cmd, "info"],
@@ -245,15 +290,15 @@ class DeploymentService:
             ]
 
             try:
-                env = os.environ.copy()
-                env["DOCKER_HOST"] = self.docker_host
+                env = self._get_docker_env_with_remote_support()
+                timeout = self.config.deployment.docker_daemon_timeout_seconds
 
                 subprocess.run(  # noqa: S603
                     cmd,
                     capture_output=True,
                     text=True,
                     check=True,
-                    timeout=30,
+                    timeout=timeout,
                     env=env,
                 )
                 logger.info(f"Docker login successful for {registry.url}")
@@ -269,6 +314,10 @@ class DeploymentService:
     def docker_logout_registries(self, registries: list | None) -> None:
         """Logs out from private Docker registries after deployment.
 
+        Robustly logs out from all registries, continuing even if individual
+        logout operations fail. This ensures credentials are cleaned up from
+        as many registries as possible.
+
         Args:
             registries: List of RegistryConfig objects
 
@@ -277,25 +326,55 @@ class DeploymentService:
 
         """
         if not registries:
+            logger.debug("No registries configured, skipping logout")
             return
 
         try:
             docker_cmd = self._get_executable_path("docker")
         except DeploymentError:
-            logger.warning("Docker executable not found, skipping logout.")
+            logger.warning("Docker executable not found, skipping logout")
             return
+
+        logout_results = {"success": [], "failed": [], "skipped": []}
+        env = self._get_docker_env_with_remote_support()
 
         for registry in registries:
             # Skip public registries
             if not registry.username:
+                logout_results["skipped"].append(registry.url)
+                logger.debug(f"Skipping logout for public registry: {registry.url}")
                 continue
 
             try:
+                timeout = self.config.deployment.docker_daemon_timeout_seconds
                 cmd = [docker_cmd, "logout", registry.url]
-                subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=10)  # noqa: S603
-                logger.debug(f"Docker logout for {registry.url}")
+                result = subprocess.run(  # noqa: S603
+                    cmd, check=False, capture_output=True, text=True, timeout=timeout, env=env
+                )
+
+                if result.returncode == 0:
+                    logout_results["success"].append(registry.url)
+                    logger.debug(f"Docker logout successful for {registry.url}")
+                else:
+                    logout_results["failed"].append(registry.url)
+                    logger.warning(
+                        f"Docker logout failed for {registry.url}: "
+                        f"{result.stderr.strip() if result.stderr else 'Unknown error'}"
+                    )
+            except subprocess.TimeoutExpired:
+                logout_results["failed"].append(registry.url)
+                logger.warning(f"Docker logout timeout for {registry.url}")
             except Exception as e:
-                logger.warning(f"Docker logout failed for {registry.url}: {e}")
+                logout_results["failed"].append(registry.url)
+                logger.warning(f"Docker logout exception for {registry.url}: {e}")
+
+        if logout_results["success"]:
+            logger.info(f"Successfully logged out from: {', '.join(logout_results['success'])}")
+        if logout_results["failed"]:
+            logger.warning(
+                f"Failed to logout from {len(logout_results['failed'])} "
+                f"registries: {', '.join(logout_results['failed'])}"
+            )
 
     def ensure_repo(self, repo_conf: RepoConfig, branch_conf: BranchConfig) -> tuple[bool, str]:
         """Clones the repository if it does not exist locally otherwise returns the existing path.
@@ -322,7 +401,6 @@ class DeploymentService:
                     repo_path,
                     branch=branch_conf.name,
                     env=git_env,
-                    # timeout=self.config.deployment.git_operation_timeout_seconds
                 )
                 logger.info(f"Successfully cloned {repo_conf.name}/{branch_conf.name}")
             except Exception as e:
@@ -375,7 +453,6 @@ class DeploymentService:
                             remote_url,
                             f"refs/heads/{branch_conf.name}",
                             env=git_env,
-                            # timeout=timeout
                         )
                         if not ls_remote_output:
                             raise GitOperationError(
@@ -505,6 +582,8 @@ class DeploymentService:
             "Starting deployment...",
         )
 
+        login_successful = False
+
         try:
             docker_path = self._get_executable_path("docker")
 
@@ -517,6 +596,8 @@ class DeploymentService:
                     "Docker registry login failed",
                 )
                 return
+
+            login_successful = True
 
             project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
             cmd = [
@@ -538,8 +619,7 @@ class DeploymentService:
             timeout = self.config.deployment.docker_compose_timeout_seconds
             logger.debug(f"Docker compose command: {' '.join(cmd)}")
 
-            env = os.environ.copy()
-            env["DOCKER_HOST"] = self.docker_host
+            env = self._get_docker_env_with_remote_support()
 
             subprocess.run(  # noqa: S603
                 cmd,
@@ -550,8 +630,6 @@ class DeploymentService:
                 timeout=timeout,
                 env=env,
             )
-
-            self.docker_logout_registries(repo_conf.registries)
 
             logger.info(f"Deployment successful for {target_id}")
             state_manager.update_target(
@@ -589,6 +667,17 @@ class DeploymentService:
                 f"Unexpected error: {str(e)[:100]}",
             )
 
+        finally:
+            if login_successful:
+                try:
+                    self.docker_logout_registries(repo_conf.registries)
+                    logger.debug(f"Docker logout completed for {target_id}")
+                except Exception as logout_error:
+                    logger.warning(
+                        f"Docker logout failed for {target_id}, "
+                        f"credentials may persist in system: {logout_error}"
+                    )
+
     def check_actual_target_state(
         self, repo_conf, branch_conf, repo_path: str, target: ComposeTarget
     ) -> str:
@@ -623,8 +712,8 @@ class DeploymentService:
                 "status=running",
             ]
 
-            env = os.environ.copy()
-            env["DOCKER_HOST"] = self.docker_host
+            env = self._get_docker_env_with_remote_support()
+            timeout = self.config.deployment.docker_compose_timeout_seconds
 
             result = subprocess.run(  # noqa: S603
                 cmd,
@@ -632,7 +721,7 @@ class DeploymentService:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=30,
+                timeout=timeout,
                 env=env,
             )
 

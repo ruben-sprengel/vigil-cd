@@ -40,17 +40,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
         f"Starting VigilCD with check interval: {config_manager.scheduling.check_interval_minutes} min"
     )
 
-    scheduled_sync_job()
-
-    scheduler.add_job(
-        scheduled_sync_job,
-        "interval",
-        minutes=config_manager.scheduling.check_interval_minutes,
-        id="git_sync_check",
-        name="Git Synchronization Check",
-        max_instances=1,
-    )
-
+    run_initial_sync()
+    schedule_all_repo_jobs()
     scheduler.start()
     logger.info("APScheduler started successfully")
 
@@ -76,29 +67,128 @@ app.add_middleware(
 )
 
 
-def scheduled_sync_job() -> None:
-    """Scheduled Job to check for repository updates and trigger deployments."""
-    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] --- Starting scheduled sync check ---")
+def sync_single_repo_branch(repo_name: str, branch_name: str) -> None:
+    """Scheduled job for a single repo/branch combination.
 
+    This function is called by APScheduler for each repo/branch independently.
+
+    Args:
+        repo_name: Name of the repository
+        branch_name: Name of the branch
+
+    """
+    # Find the repo config
+    repo_data = None
+    for r in config_manager.repos_config:
+        if r.get("name") == repo_name:
+            repo_data = r
+            break
+
+    if not repo_data:
+        logger.error(f"Repository '{repo_name}' not found in config")
+        return
+
+    repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
+
+    # Find the branch config
+    branch_config = None
+    for b in repo_config.branches:
+        if b.name == branch_name:
+            branch_config = b
+            break
+
+    if not branch_config:
+        logger.error(f"Branch '{branch_name}' not found in repo '{repo_name}'")
+        return
+
+    if not branch_config.sync_enabled:
+        logger.debug(f"Sync disabled for {repo_name}/{branch_name}, skipping")
+        return
+
+    try:
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] Syncing {repo_name}/{branch_name}")
+        service.check_and_update(repo_config, branch_config)
+    except Exception as e:
+        logger.exception(f"Error syncing {repo_name}/{branch_name}: {e}")
+
+
+def schedule_all_repo_jobs() -> None:
+    """Schedule individual jobs for each repo/branch combination.
+
+    Creates separate APScheduler jobs that run in parallel instead of
+    one large sequential job. This improves performance and allows
+    independent execution of each sync operation.
+
+    """
     if not config_manager.repos_config:
         logger.warning("No repositories configured. Add repos to config.yaml")
         return
 
+    job_count = 0
+
     for repo_data in config_manager.repos_config:
         repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
+
         for branch in repo_config.branches:
             if not branch.sync_enabled:
                 logger.info(
-                    f"Sync incl. deploy disabled for {repo_config.name}/{branch.name}, skipping"
+                    f"Sync disabled for {repo_config.name}/{branch.name}, "
+                    f"not scheduling background job"
                 )
                 continue
 
+            job_id = f"sync_{repo_config.name}_{branch.name}".replace("-", "_").replace("/", "_")
+
+            # Check if job already exists (for hot-reload scenarios)
+            existing_job = scheduler.get_job(job_id)
+            if existing_job:
+                logger.debug(f"Job {job_id} already exists, skipping")
+                continue
+
+            # Schedule the job
+            scheduler.add_job(
+                sync_single_repo_branch,
+                "interval",
+                minutes=config_manager.scheduling.check_interval_minutes,
+                args=[repo_config.name, branch.name],
+                id=job_id,
+                name=f"Sync {repo_config.name}/{branch.name}",
+                max_instances=1,  # Prevent overlapping runs of the same repo/branch
+            )
+
+            logger.info(
+                f"✓ Scheduled job '{job_id}' (every "
+                f"{config_manager.scheduling.check_interval_minutes} min)"
+            )
+            job_count += 1
+
+    logger.info(f"Scheduled {job_count} background sync jobs")
+
+
+def run_initial_sync() -> None:
+    """Run initial sync for all repos on startup (before scheduler starts).
+
+    This ensures deployments are up-to-date immediately after container start.
+
+    """
+    logger.info("Running initial sync for all repositories...")
+
+    if not config_manager.repos_config:
+        logger.warning("No repositories configured")
+        return
+
+    for repo_data in config_manager.repos_config:
+        repo_config = Config.parse_obj({"repos": [repo_data]}).repos[0]
+
+        for branch in repo_config.branches:
+            if not branch.sync_enabled:
+                continue
+
             try:
+                logger.info(f"Initial sync: {repo_config.name}/{branch.name}")
                 service.check_and_update(repo_config, branch)
             except Exception as e:
-                logger.exception(
-                    f"Error in scheduled job for {repo_config.name}/{branch.name}: {e}"
-                )
+                logger.exception(f"Error in initial sync for {repo_config.name}/{branch.name}: {e}")
 
 
 @app.get("/repos")

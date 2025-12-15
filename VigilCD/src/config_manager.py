@@ -5,7 +5,7 @@ import os
 from typing import Any
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,39 @@ class SchedulingConfig(BaseModel):
 
 
 class DeploymentConfig(BaseModel):
-    """Deployment related configuration."""
+    """Deployment related configuration.
 
-    docker_compose_timeout_seconds: int = 300
-    git_operation_timeout_seconds: int = 60
-    docker_daemon_timeout_seconds: int = 10
+    Timeout values can be:
+    - float: Timeout in seconds (e.g., 30.0, 300.5)
+    - None: No timeout (wait indefinitely - use with caution!)
+    """
+
+    docker_compose_timeout_seconds: float | None = 300.0
+    git_operation_timeout_seconds: float | None = 60.0
+    docker_daemon_timeout_seconds: float | None = 10.0
+
+    @field_validator(
+        "docker_compose_timeout_seconds",
+        "git_operation_timeout_seconds",
+        "docker_daemon_timeout_seconds",
+    )
+    @classmethod
+    def validate_timeout_positive(cls, v: float | None) -> float | None:
+        """Validates that timeout values are positive or None.
+
+        Args:
+            v: Timeout value
+
+        Returns:
+            Validated timeout value
+
+        Raises:
+            ValueError: If timeout is not positive (when not None)
+
+        """
+        if v is not None and v <= 0:
+            raise ValueError("Timeout must be positive (> 0) or None")
+        return v
 
 
 class LoggingConfig(BaseModel):
@@ -80,7 +108,10 @@ class ConfigManager:
             logger.warning("No repositories configured in config.yaml")
 
     def _apply_env_overrides(self) -> None:
-        """Loads Overrides from Environment Variables."""
+        """Loads Overrides from Environment Variables.
+
+        For timeout values, use "none" or "null" to disable timeouts.
+        """
         if env_val := os.getenv("VIGILCD_CHECK_INTERVAL_MINUTES"):
             self.scheduling.check_interval_minutes = int(env_val)
         if env_val := os.getenv("VIGILCD_GIT_RETRY_COUNT"):
@@ -89,23 +120,43 @@ class ConfigManager:
             self.scheduling.retry_backoff_factor = float(env_val)
 
         if env_val := os.getenv("VIGILCD_DOCKER_TIMEOUT"):
-            self.deployment.docker_compose_timeout_seconds = int(env_val)
+            self.deployment.docker_compose_timeout_seconds = self._parse_timeout(env_val)
         if env_val := os.getenv("VIGILCD_GIT_TIMEOUT"):
-            self.deployment.git_operation_timeout_seconds = int(env_val)
+            self.deployment.git_operation_timeout_seconds = self._parse_timeout(env_val)
         if env_val := os.getenv("VIGILCD_DOCKER_DAEMON_TIMEOUT"):
-            self.deployment.docker_daemon_timeout_seconds = int(env_val)
+            self.deployment.docker_daemon_timeout_seconds = self._parse_timeout(env_val)
 
         if env_val := os.getenv("VIGILCD_LOG_LEVEL"):
             self.logging_config.level = env_val.upper()
         if env_val := os.getenv("VIGILCD_LOG_FORMAT"):
             self.logging_config.format = env_val.lower()
 
+    def _parse_timeout(self, value: str) -> float | None:
+        """Parses a timeout value from environment variable.
+
+        Args:
+            value: String value ("30", "30.5", "none", "null")
+
+        Returns:
+            float or None
+
+        """
+        value_lower = value.lower().strip()
+        if value_lower in ("none", "null", ""):
+            return None
+        try:
+            return float(value)
+        except ValueError as e:
+            logger.warning(f"Invalid timeout value '{value}', using default")
+            raise ValueError(f"Invalid timeout value: {value}") from e
+
     def _validate(self) -> None:
         """Valdiates the loaded configuration."""
         if self.scheduling.check_interval_minutes < 1:
             raise ValueError("check_interval_minutes muss >= 1 sein")
-        if self.deployment.docker_compose_timeout_seconds < 10:  # noqa: PLR2004
-            raise ValueError("docker_compose_timeout_seconds muss >= 10 sein")
+
+        # Timeout validation is now handled by Pydantic field_validator in DeploymentConfig
+
         logger.info("Config-Validierung erfolgreich")
 
     def get_ssh_key_path(self) -> str | None:

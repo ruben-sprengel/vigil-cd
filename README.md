@@ -2,7 +2,7 @@
 
 **VigilCD** is a lightweight GitOps deployment agent that automatically monitors Git repositories and performs Docker Compose deployments on changes. Built for self-hosted environments with support for private repositories and Docker registries.
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![CI Status](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml/badge.svg)](https://github.com/ruben-sprengel/vigil-cd/actions)
 ![Image Build Status](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml/badge.svg)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-%23000000.svg)](https://github.com/astral-sh/ruff)
@@ -15,13 +15,15 @@
 ## 🎯 Features
 
 - ✅ **Automatic Git Sync** - Periodic polling or webhook-based
-- ✅ **Multi-Repository** - Manage multiple repos and branches
+- ✅ **Parallel Processing** - Independent jobs per repo/branch for maximum performance
+- ✅ **Multi-Repository** - Manage multiple repos and branches simultaneously
 - ✅ **SSH & HTTPS Auth** - Private GitHub/GitLab repositories
-- ✅ **Private Registries** - GHCR, Docker Hub, self-hosted
+- ✅ **Private Registries** - GHCR, Docker Hub, self-hosted with secure credential cleanup
 - ✅ **Health Checks** - Auto-recovery on failures
 - ✅ **RESTful API** - Status monitoring and manual triggers
 - ✅ **GitHub Webhooks** - Instant deployments on push
-- ✅ **Secure** - Non-root container (UID 1000)
+- ✅ **Flexible Timeouts** - Configurable timeouts with float precision or disable entirely
+- ✅ **Secure** - Non-root container (UID 1000) + guaranteed credential cleanup
 - ✅ **Multi-Arch** - AMD64 and ARM64 (Raspberry Pi)
 
 ## 🚀 Quick Start
@@ -30,6 +32,7 @@
 
 - Docker
 - Docker Compose
+- UV
 
 ### Installation
 

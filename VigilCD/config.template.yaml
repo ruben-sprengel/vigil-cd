@@ -2,19 +2,17 @@
 # VigilCD Repository Configurations
 # ===================================
 
-# configure your repositories here to be monitored and deployed by VigilCD
-
 repos:
   # --- Public HTTPS Repository ---
   - name: "test-my-app"
-    url: "https://github.com/my-username/my-repo-name"
+    url: "https://github.com/my-username/my-repo"
     auth_method: "https"  # Default, kein SSH-Key nötig
 
     branches:
       - name: "main"
         sync_enabled: false
         targets:
-          - name: "backend"
+          - name: "srv"
             file: "docker-compose.yml"
             deploy: false
             build_images: false
@@ -26,53 +24,50 @@ repos:
             deploy: false
 
   # --- Private SSH Repository (Global SSH Key) ---
-  - name: "private-app"
-    url: "git@github.com:my-username/private-app.git"
-    sync_enabled: false
-    auth_method: "ssh"
-    # ssh_key_path wird aus Umgebungsvariable VIGILCD_SSH_KEY_PATH geladen
-    # Oder explizit setzen: ssh_key_path: "/app/.ssh/id_ed25519"
-
-    branches:
-      - name: "production"
-        targets:
-          - name: "myapp"
-            file: "docker-compose.prod.yml"
-            deploy: false;
-            build_images: true
+  #  - name: "private-app"
+  #    url: "git@github.com:my-username/private-app.git"
+  #    auth_method: "ssh"
+  #    # ssh_key_path wird aus Umgebungsvariable VIGILCD_SSH_KEY_PATH geladen
+  #    # Oder explizit setzen: ssh_key_path: "/app/.ssh/id_ed25519"
+  #
+  #    branches:
+  #      - name: "production"
+  #        targets:
+  #          - name: "myapp"
+  #            file: "docker-compose.prod.yml"
+  #            deploy: true
+  #            build_images: true
 
   # --- Private SSH Repository mit dediziertem Key ---
-  - name: "microservice-payment"
-    url: "git@github.com:company/payment-service.git"
-    sync_enabled: false
-    auth_method: "ssh"
-    ssh_key_path: "/app/.ssh/payment_service_deploy_key"  # Repo-spezifischer Key
-
-    # Private Docker Registry (z.B. GitHub Container Registry)
-    registries:
-      - url: "ghcr.io"
-        username: "deployment-bot"
-        password_env_var: "GHCR_TOKEN"  # In Umgebung setzen
-
-    branches:
-      - name: "main"
-        targets:
-          - name: "payment-api"
-            file: "docker-compose.yml"
-            deploy: false
-            build_images: true
+  #  - name: "microservice-payment"
+  #    url: "git@github.com:company/payment-service.git"
+  #    auth_method: "ssh"
+  #    ssh_key_path: "/app/.ssh/payment_service_deploy_key"  # Repo-spezifischer Key
+  #
+  #    # Private Docker Registry (z.B. GitHub Container Registry)
+  #    registries:
+  #      - url: "ghcr.io"
+  #        username: "deployment-bot"
+  #        password_env_var: "GHCR_TOKEN"  # In Umgebung setzen
+  #
+  #    branches:
+  #      - name: "main"
+  #        targets:
+  #          - name: "payment-api"
+  #            file: "docker-compose.yml"
+  #            deploy: true
+  #            build_images: true
 
   # --- Private HTTPS Repository mit Token ---
-  - name: "legacy-system"
-    # Token in URL einbetten (nicht empfohlen, besser SSH nutzen)
-    url: "https://oauth2:${GITHUB_TOKEN}@github.com/company/legacy.git"
-    sync_enabled: false
-    auth_method: "https"
-
-    branches:
-      - name: "stable"
-        targets:
-          - name: "app"
-            file: "docker-compose.yml"
-            deploy: false
-            build_images: false
+#  - name: "legacy-system"
+#    # Token in URL einbetten (nicht empfohlen, besser SSH nutzen)
+#    url: "https://oauth2:${GITHUB_TOKEN}@github.com/company/legacy.git"
+#    auth_method: "https"
+#
+#    branches:
+#      - name: "stable"
+#        targets:
+#          - name: "app"
+#            file: "docker-compose.yml"
+#            deploy: true
+#            build_images: false
