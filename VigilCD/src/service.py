@@ -545,7 +545,9 @@ class DeploymentService:
             logger.exception(f"Unexpected error in check_and_update for {repo_id}: {e}")
             state_manager.update_branch(repo_conf.name, branch_conf.name, sync_status="error")
 
-    def deploy_target(self, repo_conf, branch_conf, cwd: str, target: ComposeTarget) -> None:
+    def deploy_target(
+        self, repo_conf: RepoConfig, branch_conf: BranchConfig, cwd: str, target: ComposeTarget
+    ) -> None:
         """Runs Docker Compose deployment for the given target.
 
         Logs in to registries if configured.
@@ -599,7 +601,9 @@ class DeploymentService:
 
             login_successful = True
 
-            project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
+            project_name = f"{repo_conf.name}_{branch_conf.name}_{target.name}".lower().replace(
+                "-", "_"
+            )
             cmd = [
                 docker_path,
                 "compose",
@@ -679,7 +683,11 @@ class DeploymentService:
                     )
 
     def check_actual_target_state(
-        self, repo_conf, branch_conf, repo_path: str, target: ComposeTarget
+        self,
+        repo_conf: RepoConfig,
+        branch_conf: BranchConfig,
+        repo_path: str,
+        target: ComposeTarget,
     ) -> str:
         """Checks the actual live state of the Docker Compose target.
 
@@ -698,7 +706,9 @@ class DeploymentService:
 
         try:
             docker_path = self._get_executable_path("docker")
-            project_name = f"{repo_conf.name}_{branch_conf.name}".lower().replace("-", "_")
+            project_name = f"{repo_conf.name}_{branch_conf.name}_{target.name}".lower().replace(
+                "-", "_"
+            )
             cmd = [
                 docker_path,
                 "compose",
