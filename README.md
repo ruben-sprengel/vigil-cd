@@ -145,10 +145,10 @@ The `setup.sh` script prompts you to generate SSH keys. Alternatively:
 
 ```bash
 # Generate key
-ssh-keygen -t ed25519 -C "vigilcd" -f ./ssh-keys/id_ed25519 -N ""
+ssh-keygen -t ed25519 -C "vigilcd-test" -f id_ed25519_vigilcd
 
 # Show public key
-cat ./ssh-keys/id_ed25519.pub
+cat ./ssh-keys/id_ed25519_vigilcd.pub
 
 # Add to GitHub:
 # Repository → Settings → Deploy Keys → Add deploy key

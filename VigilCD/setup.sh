@@ -218,31 +218,31 @@ if [ ! -f "./ssh-keys/id_ed25519" ]; then
     read -p "   Generate SSH key now? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        ssh-keygen -t ed25519 -C "vigilcd-deploy" -f ./ssh-keys/id_ed25519 -N ""
+        ssh-keygen -t ed25519 -C "vigilcd-deploy" -f ./ssh-keys/id_ed25519_vigilcd_deploy
 
         # Set correct ownership and permissions
-        $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519 2>/dev/null || true
-        $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519.pub 2>/dev/null || true
-        chmod 600 ./ssh-keys/id_ed25519
-        chmod 644 ./ssh-keys/id_ed25519.pub
+        $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519_vigilcd_deploy 2>/dev/null || true
+        $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519_vigilcd_deploy.pub 2>/dev/null || true
+        chmod 600 ./ssh-keys/id_ed25519_vigilcd_deploy
+        chmod 644 ./ssh-keys/id_ed25519_vigilcd_deploy.pub
 
         echo "✅ SSH key generated"
         echo ""
         echo "📋 Add this public key to GitHub:"
         echo "   → Repository Settings → Deploy Keys → Add deploy key"
         echo ""
-        cat ./ssh-keys/id_ed25519.pub
+        cat ./ssh-keys/id_ed25519_vigilcd_deploy.pub
         echo ""
     else
         echo "   Skipped SSH key generation"
         echo "   You can generate it later with:"
-        echo "   ssh-keygen -t ed25519 -C 'vigilcd' -f ./ssh-keys/id_ed25519"
+        echo "   ssh-keygen -t ed25519 -C 'vigilcd' -f ./ssh-keys/id_ed25519_vigilcd_deploy"
     fi
 else
     echo "✅ SSH keys already exist"
     # Ensure correct permissions
-    $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519 2>/dev/null || true
-    chmod 600 ./ssh-keys/id_ed25519 2>/dev/null || true
+    $USE_SUDO chown $CONTAINER_UID:$CONTAINER_GID ./ssh-keys/id_ed25519_vigilcd_deploy 2>/dev/null || true
+    chmod 600 ./ssh-keys/id_ed25519_vigilcd_deploy 2>/dev/null || true
 fi
 
 # ===================================
