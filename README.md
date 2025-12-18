@@ -2,13 +2,14 @@
 
 **VigilCD** is a lightweight GitOps deployment agent that automatically monitors Git repositories and performs Docker Compose deployments on changes. Built for self-hosted environments with support for private repositories and Docker registries.
 
-[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
-[![CI Status](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml/badge.svg)](https://github.com/ruben-sprengel/vigil-cd/actions)
-![Image Build Status](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml/badge.svg)
-[![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-%23000000.svg)](https://github.com/astral-sh/ruff)
-[![Linting: Ruff](https://img.shields.io/badge/linting-ruff-%23000000.svg)](https://github.com/astral-sh/ruff)
-[![Dependency Manager: uv](https://img.shields.io/badge/dependency%20manager-uv-%23000000.svg)](https://astral.sh/uv)
+[![VigilCD CI Checks](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml/badge.svg?branch=main)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml)
+[![VigilCD image build](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml/badge.svg?&event=release)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml)
 
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/badge/-uv-%23000000.svg?logo=astral&logoColor=white)](https://astral.sh/uv)
+[![Ruff](https://img.shields.io/badge/ruff-%23000000.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![mypy](https://img.shields.io/badge/mypy-blue.svg?logo=python&logoColor=white)](https://github.com/python/mypy)
+[![pytest](https://img.shields.io/badge/pytest-green.svg?logo=pytest&logoColor=white)](https://github.com/pytest-dev/pytest)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubensprengel)
 
