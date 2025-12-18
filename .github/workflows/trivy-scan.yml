@@ -4,7 +4,15 @@ on:
   push:
     branches:
       - main
+      - development
+      - staging
   pull_request:
+  schedule:
+    - cron: '00 1 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   trivy-scan:
@@ -12,6 +20,10 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/development", "refs/heads/staging"]'), github.ref))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

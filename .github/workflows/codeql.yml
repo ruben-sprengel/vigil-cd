@@ -2,9 +2,15 @@ name: "CodeQL Advanced"
 
 on:
   push:
+    branches:
+      - main
+      - development
+      - staging
   pull_request:
-  schedule:
-    - cron: '42 1 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
@@ -15,7 +21,6 @@ jobs:
       packages: read
       actions: read
       contents: read
-
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +37,10 @@ jobs:
         # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
         # If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/development", "refs/heads/staging"]'), github.ref))
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
