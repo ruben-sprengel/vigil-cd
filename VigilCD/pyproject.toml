@@ -1,6 +1,6 @@
 [project]
 name = "vigilcd"
-version = "0.7.0"
+version = "0.8.0"
 description = "VigilCD - GitOps Deployment Agent"
 readme = "README.md"
 license = "MIT"
@@ -26,7 +26,7 @@ dev = [
     "pytest==9.0.2",
     "pytest-asyncio==1.3.0",
     "pytest-cov==7.0.0",
-    "ruff==0.14.9",
+    "ruff==0.14.10",
     "mypy==1.19.1",
     "types-PyYAML==6.0.12.20250915"
 ]
