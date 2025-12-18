@@ -1,8 +1,5 @@
 name: trivy-scan
 
-permissions:
-  contents: read
-
 on:
   push:
     branches:
@@ -12,9 +9,26 @@ on:
 jobs:
   trivy-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'
 
       - name: Build image for scanning
         uses: docker/build-push-action@v5

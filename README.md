@@ -4,6 +4,7 @@
 
 [![VigilCD CI Checks](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml/badge.svg?branch=main)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-ci.yml)
 [![VigilCD image build](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml/badge.svg?&event=release)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/vigilcd-image-build.yml)
+[![trivy-scan](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml)
 
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/-uv-%23000000.svg?logo=astral&logoColor=white)](https://astral.sh/uv)
