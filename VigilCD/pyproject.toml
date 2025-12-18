@@ -30,10 +30,6 @@ dev = [
     "types-PyYAML==6.0.12.20250915"
 ]
 
-vault = [
-    "hvac==2.4.0",  # HashiCorp Vault Client
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
