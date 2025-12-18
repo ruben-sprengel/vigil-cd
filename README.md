@@ -21,7 +21,6 @@
 - ✅ **Private Registries** - GHCR, Docker Hub, self-hosted with secure credential cleanup
 - ✅ **Health Checks** - Auto-recovery on failures
 - ✅ **RESTful API** - Status monitoring and manual triggers
-- ✅ **GitHub Webhooks** - Instant deployments on push
 - ✅ **Flexible Timeouts** - Configurable timeouts with float precision or disable entirely
 - ✅ **Secure** - Non-root container (UID 1000) + guaranteed credential cleanup
 - ✅ **Multi-Arch** - AMD64 and ARM64 (Raspberry Pi)
@@ -193,37 +192,6 @@ repos:
 - Docker Hub (docker.io)
 - Self-hosted registries
 - AWS ECR, GCR, etc.
-
-## 🔔 GitHub Webhooks
-
-For instant deployments (instead of polling):
-
-### 1. Generate Secret
-
-```bash
-openssl rand -base64 32
-# Add to .env:
-VIGILCD_GITHUB_WEBHOOK_SECRET=your-secret
-```
-
-### 2. Configure in GitHub
-
-**Repository → Settings → Webhooks → Add webhook**
-
-- **Payload URL:** `http://your-server:8000/webhooks/github`
-- **Content type:** `application/json`
-- **Secret:** Your webhook secret from `.env`
-- **Events:** Just the push event
-
-### 3. Test
-
-```bash
-git commit -m "test" --allow-empty
-git push
-
-# Check logs
-docker-compose logs -f vigilcd
-```
 
 ## 📡 API Endpoints
 

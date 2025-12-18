@@ -12,6 +12,7 @@ from typing import Any
 from git import GitCommandError, Repo
 
 from src.config_manager import ConfigManager
+from src.docker_env_validator import validate_docker_compose_env
 from src.models import BranchConfig, ComposeTarget, RepoConfig
 from src.state import state_manager
 
@@ -51,10 +52,10 @@ class DockerConfig:
         Returns:
             Docker Host URL
         """
-        if os.getenv("DOCKER_HOST"):
-            docker_host = os.getenv("DOCKER_HOST")
-            logger.info(f"Using Docker Host from env: {docker_host}")
-            return docker_host
+        env_host = os.getenv("DOCKER_HOST")
+        if env_host:
+            logger.info(f"Using Docker Host from env: {env_host}")
+            return env_host
 
         is_wsl = os.getenv("VIGILCD_LOCAL_WSL") is not None
         if is_wsl or platform.system() != "Windows":
@@ -88,7 +89,7 @@ class DeploymentService:
 
     LOCAL_HOST_PREFIXES = ("unix://", "npipe://", "tcp://127.0.0.1")
 
-    def __init__(self, config_manager: ConfigManager = None) -> None:
+    def __init__(self, config_manager: ConfigManager | None = None) -> None:
         """Initializes the DeploymentService with configuration.
 
         Args:
@@ -98,7 +99,13 @@ class DeploymentService:
             None
 
         """
-        self.config = config_manager or ConfigManager()
+        # Fix: Ensure ConfigManager is initialized with a path if default is used
+        if config_manager is None:
+            config_path = os.environ.get("CONFIG_PATH", "/home/vigilcd/src/config/config.yaml")
+            self.config = ConfigManager(config_file=config_path)
+        else:
+            self.config = config_manager
+
         self.docker_host = DockerConfig.get_docker_host()
         logger.info(f"DeploymentService initialized with Docker Host: {self.docker_host}")
 
@@ -335,7 +342,7 @@ class DeploymentService:
             logger.warning("Docker executable not found, skipping logout")
             return
 
-        logout_results = {"success": [], "failed": [], "skipped": []}
+        logout_results: dict[str, list[str]] = {"success": [], "failed": [], "skipped": []}
         env = self._get_docker_env_with_remote_support()
 
         for registry in registries:
@@ -545,7 +552,7 @@ class DeploymentService:
             logger.exception(f"Unexpected error in check_and_update for {repo_id}: {e}")
             state_manager.update_branch(repo_conf.name, branch_conf.name, sync_status="error")
 
-    def deploy_target(
+    def deploy_target(  # noqa: PLR0912 PLR0915
         self, repo_conf: RepoConfig, branch_conf: BranchConfig, cwd: str, target: ComposeTarget
     ) -> None:
         """Runs Docker Compose deployment for the given target.
@@ -575,6 +582,26 @@ class DeploymentService:
 
         target_id = f"{repo_conf.name}/{branch_conf.name}/{target.name}"
         logger.info(f"Starting deployment for {target_id}")
+        logger.info(f"Validating environment for {target_id}...")
+        is_valid, warnings = validate_docker_compose_env(target.file, cwd)
+
+        if not is_valid:
+            error_msg = "Environment validation failed:\n" + "\n".join(f"  - {w}" for w in warnings)
+            logger.error(f"⚠️  {target_id}: {error_msg}")
+            state_manager.update_target(
+                repo_conf.name,
+                branch_conf.name,
+                target.name,
+                "error",
+                "Missing environment configuration",
+            )
+            return
+
+        if warnings:
+            for warning in warnings:
+                logger.warning(f"⚠️  {target_id}: {warning}")
+        else:
+            logger.info(f"✓ Environment validation passed for {target_id}")
 
         state_manager.update_target(
             repo_conf.name,

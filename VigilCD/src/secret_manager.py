@@ -275,10 +275,10 @@ class SecretManager:
 _secret_manager: SecretManager | None = None
 
 
-def get_secret_manager(backend: str = None) -> SecretManager:
+def get_secret_manager(backend: str | None = None) -> SecretManager:
     """Returns the global SecretManager instance."""
     global _secret_manager  # noqa: PLW0603
     if _secret_manager is None:
-        _backend = backend or os.getenv("VIGILCD_SECRET_BACKEND", "env")
-        _secret_manager = SecretManager(backend=_backend)
+        _backend = backend or os.getenv("VIGILCD_SECRET_BACKEND", "env")  # type: ignore[assignment]
+        _secret_manager = SecretManager(backend=_backend)  # type: ignore[arg-type]
     return _secret_manager

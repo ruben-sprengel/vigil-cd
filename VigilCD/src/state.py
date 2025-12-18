@@ -2,10 +2,15 @@
 
 import asyncio
 import json
+import logging
 import os
+from collections.abc import AsyncGenerator
 from datetime import datetime
+from typing import Any
 
-from src.models import BranchStatus, RepoStatus, TargetStatus  # Importe aus models.py
+from src.models import BranchStatus, RepoStatus, TargetStatus
+
+logger = logging.getLogger(__name__)
 
 STATUS_FILE = "vigilcd_status.json"
 
@@ -13,7 +18,7 @@ STATUS_FILE = "vigilcd_status.json"
 class StateManager:
     """Manages the application state, including loading/saving status and notifying SSE clients."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Init the StateManager."""
         self.status: dict[str, RepoStatus] = {}
         self._listeners: list[asyncio.Queue] = []
@@ -32,15 +37,13 @@ class StateManager:
             self.status[repo_name] = RepoStatus(repo_name=repo_name)
         return self.status[repo_name]
 
-    def _to_json_serializable(self) -> dict:
+    def _to_json_serializable(self) -> dict[str, Any]:
         """Converts the current status to a JSON-serializable dict.
 
-        Args:
-            None
         Returns:
             dict: JSON-serializable representation of the status.
         """
-        data = {k: v.dict() for k, v in self.status.items()}
+        data = {k: v.model_dump() for k, v in self.status.items()}
         return data
 
     def _save_status(self) -> None:
@@ -48,10 +51,8 @@ class StateManager:
         try:
             with open(STATUS_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._to_json_serializable(), f, default=str, indent=4)
-            # Hinweis: logger nutzen, falls in state.py vorhanden
-            print(f"Status erfolgreich gespeichert in {STATUS_FILE}")
-        except Exception as e:
-            print(f"FEHLER beim Speichern des Status: {e}")
+        except Exception:
+            logger.exception("Error saving status")
 
     def load_status(self) -> None:
         """Loads the status from a JSON file, if it exists."""
@@ -60,33 +61,17 @@ class StateManager:
                 with open(STATUS_FILE, encoding="utf-8") as f:
                     data = json.load(f)
 
-                # Deserialisierung der geladenen Daten zurück in Pydantic Modelle
                 loaded_status = {}
                 for repo_name, repo_data in data.items():
                     loaded_status[repo_name] = RepoStatus(**repo_data)
 
                 self.status = loaded_status
-                print(f"Status erfolgreich aus {STATUS_FILE} geladen.")
-            except Exception as e:
-                print(
-                    f"FEHLER beim Laden oder Deserialisieren des Status: {e}. Startet mit leerem Status."
-                )
+            except Exception:
+                logger.exception("Error loading status. Starting with empty status.")
                 self.status = {}
-        else:
-            print(f"Keine Statusdatei ({STATUS_FILE}) gefunden. Startet mit leerem Status.")
 
-    # Anpassung: Speichern nach jeder Status-Änderung
-    def update_branch(self, repo_name: str, branch_name: str, **kwargs) -> None:
-        """Updates a specific branch status with given attributes.
-
-        Args:
-            repo_name (str): The name of the repository.
-            branch_name (str): The name of the branch.
-            **kwargs: Attributes to update in the BranchStatus.
-
-        Returns:
-            None
-        """
+    def update_branch(self, repo_name: str, branch_name: str, **kwargs: Any) -> None:
+        """Updates a specific branch status with given attributes."""
         r_status = self.get_repo_status(repo_name)
 
         if branch_name not in r_status.branches:
@@ -94,7 +79,8 @@ class StateManager:
 
         b_status = r_status.branches[branch_name]
         for key, value in kwargs.items():
-            setattr(b_status, key, value)
+            if hasattr(b_status, key):
+                setattr(b_status, key, value)
 
         self.notify_listeners(repo_name)
         self._save_status()
@@ -107,19 +93,7 @@ class StateManager:
         status: str,
         message: str = "",
     ) -> None:
-        """Updates the status of a specific deployment target.
-
-        Args:
-            repo_name (str): The name of the repository.
-            branch_name (str): The name of the branch.
-            target_name (str): The name of the deployment target.
-            status (str): The new status ('pending', 'success', 'error', 'skipped').
-            message (str, optional): Additional message. Defaults to "".
-
-        Returns:
-            None
-
-        """
+        """Updates the status of a specific deployment target."""
         r_status = self.get_repo_status(repo_name)
         b_status = r_status.branches.get(branch_name)
         if not b_status:
@@ -138,34 +112,28 @@ class StateManager:
         self._save_status()
 
     def notify_listeners(self, changed_repo: str) -> None:
-        """Notifies all SSE listeners about a state change.
-
-        Args:
-            changed_repo (str): The name of the repository that changed.
-
-        Returns:
-            None
-        """
-        data = {k: v.dict() for k, v in self.status.items()}
+        """Notifies all SSE listeners about a state change."""
+        data = self._to_json_serializable()
         json_data = json.dumps(data, default=str)
 
         for queue in self._listeners:
             queue.put_nowait(json_data)
 
-    async def stream(self):
+    async def stream(self) -> AsyncGenerator[str, None]:
         """Generator für SSE."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue = asyncio.Queue()
         self._listeners.append(queue)
 
-        initial_data = json.dumps({k: v.dict() for k, v in self.status.items()}, default=str)
+        initial_data = json.dumps(self._to_json_serializable(), default=str)
         yield f"data: {initial_data}\n\n"
 
         try:
             while True:
                 data = await queue.get()
                 yield f"data: {data}\n\n"
-        except asyncio.CancelledError:
-            self._listeners.remove(queue)
+        finally:
+            if queue in self._listeners:
+                self._listeners.remove(queue)
 
 
 state_manager = StateManager()

@@ -1,6 +1,6 @@
 [project]
 name = "vigilcd"
-version = "0.6.0"
+version = "0.7.0"
 description = "VigilCD - GitOps Deployment Agent"
 readme = "README.md"
 license = "MIT"
@@ -27,6 +27,7 @@ dev = [
     "pytest-cov==7.0.0",
     "ruff==0.14.9",
     "mypy==1.19.1",
+    "types-PyYAML==6.0.12.20250915"
 ]
 
 vault = [
@@ -95,6 +96,9 @@ ignore = [
     "D203",
     "D212",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "S105", "S106", "PLR0913"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

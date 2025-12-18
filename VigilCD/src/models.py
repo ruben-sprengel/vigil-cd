@@ -1,7 +1,7 @@
 """Defines the data models."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, model_validator
 
@@ -76,7 +76,7 @@ class RepoConfig(BaseModel):
     branches: list[BranchConfig]
 
     @model_validator(mode="after")
-    def validate_url_for_auth_method(self) -> "Config":
+    def validate_url_for_auth_method(self) -> Self:
         """Validates the URL based on the auth_method."""
         auth = getattr(self, "auth_method", "https")
 

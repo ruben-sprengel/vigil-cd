@@ -7,6 +7,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, field_validator
 
+from src.models import RepoConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,12 +69,12 @@ class ConfigManager:
 
     def __init__(self, config_file: str) -> None:
         """Init the ConfigManager."""
-        self.config_file = config_file
-        self.raw_config = {}
+        self.config_file: str = config_file
+        self.raw_config: dict[str, Any] = {}
         self.scheduling: SchedulingConfig
         self.deployment: DeploymentConfig
         self.logging_config: LoggingConfig
-        self.repos_config = []
+        self.repos_config: list[RepoConfig] = []
 
         self._load_and_parse()
         self._apply_env_overrides()
@@ -82,7 +84,7 @@ class ConfigManager:
         """Loads and parses the YAML config file."""
         try:
             with open(self.config_file, encoding="utf-8") as f:
-                self.raw_config = yaml.safe_load(f)
+                self.raw_config = yaml.safe_load(f) or {}
             logger.info(f"Config geladen: {self.config_file}")
         except FileNotFoundError:
             logger.error(f"Config-Datei nicht gefunden: {self.config_file}")
@@ -95,17 +97,24 @@ class ConfigManager:
         self.deployment = DeploymentConfig()  # Keine YAML Params
         self.logging_config = LoggingConfig()  # Keine YAML Params
 
-        self.repos_config = self.raw_config.get("repos") if self.raw_config else []
+        repos_raw = self.raw_config.get("repos")
+        if isinstance(repos_raw, list):
+            valid_repos = []
+            for idx, r_data in enumerate(repos_raw):
+                try:
+                    # Pydantic Model Validierung pro Eintrag
+                    repo_obj = RepoConfig.model_validate(r_data)
+                    valid_repos.append(repo_obj)
+                except Exception as e:
+                    logger.error(f"Fehler in Repo-Konfiguration (Index {idx}): {e}")
 
-        if self.repos_config is None:
+            self.repos_config = valid_repos
+        else:
             self.repos_config = []
-            logger.warning("No 'repos' key found in config.yaml - no repositories configured")
-        elif not isinstance(self.repos_config, list):
-            logger.error("'repos' must be a list in config.yaml")
-            self.repos_config = []
-
-        if not self.repos_config:
-            logger.warning("No repositories configured in config.yaml")
+            if repos_raw is not None:
+                logger.error("'repos' must be a list in config.yaml")
+            else:
+                logger.warning("No 'repos' key found in config.yaml")
 
     def _apply_env_overrides(self) -> None:
         """Loads Overrides from Environment Variables.
@@ -119,11 +128,16 @@ class ConfigManager:
         if env_val := os.getenv("VIGILCD_RETRY_BACKOFF_FACTOR"):
             self.scheduling.retry_backoff_factor = float(env_val)
 
-        if env_val := os.getenv("VIGILCD_DOCKER_TIMEOUT"):
+        env_val = os.getenv("VIGILCD_DOCKER_TIMEOUT")
+        if env_val is not None:
             self.deployment.docker_compose_timeout_seconds = self._parse_timeout(env_val)
-        if env_val := os.getenv("VIGILCD_GIT_TIMEOUT"):
+
+        env_val = os.getenv("VIGILCD_GIT_TIMEOUT")
+        if env_val is not None:
             self.deployment.git_operation_timeout_seconds = self._parse_timeout(env_val)
-        if env_val := os.getenv("VIGILCD_DOCKER_DAEMON_TIMEOUT"):
+
+        env_val = os.getenv("VIGILCD_DOCKER_DAEMON_TIMEOUT")
+        if env_val is not None:
             self.deployment.docker_daemon_timeout_seconds = self._parse_timeout(env_val)
 
         if env_val := os.getenv("VIGILCD_LOG_LEVEL"):
@@ -194,9 +208,9 @@ class ConfigManager:
 
         """
         return {
-            "scheduling": self.scheduling.dict(),
-            "deployment": self.deployment.dict(),
-            "logging": self.logging_config.dict(),
+            "scheduling": self.scheduling.model_dump(),
+            "deployment": self.deployment.model_dump(),
+            "logging": self.logging_config.model_dump(),
             "repos_count": len(self.repos_config),
         }
 
@@ -208,8 +222,8 @@ class ConfigManager:
 
         """
         return {
-            "scheduling": self.scheduling.dict(),
-            "deployment": self.deployment.dict(),
-            "logging": self.logging_config.dict(),
-            "repos": self.repos_config,
+            "scheduling": self.scheduling.model_dump(),
+            "deployment": self.deployment.model_dump(),
+            "logging": self.logging_config.model_dump(),
+            "repos": [r.model_dump() for r in self.repos_config],
         }
