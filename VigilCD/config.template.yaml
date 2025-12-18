@@ -6,7 +6,7 @@ repos:
   # --- Public HTTPS Repository ---
   - name: "test-my-app"
     url: "https://github.com/my-username/my-repo"
-    auth_method: "https"  # Default, kein SSH-Key nötig
+    auth_method: "https"
 
     branches:
       - name: "main"
@@ -32,6 +32,7 @@ repos:
   #
   #    branches:
   #      - name: "production"
+  #        sync_enabled: false
   #        targets:
   #          - name: "myapp"
   #            file: "docker-compose.prod.yml"
@@ -52,6 +53,7 @@ repos:
   #
   #    branches:
   #      - name: "main"
+  #        sync_enabled: false
   #        targets:
   #          - name: "payment-api"
   #            file: "docker-compose.yml"
@@ -66,6 +68,7 @@ repos:
 #
 #    branches:
 #      - name: "stable"
+#        sync_enabled: false
 #        targets:
 #          - name: "app"
 #            file: "docker-compose.yml"
