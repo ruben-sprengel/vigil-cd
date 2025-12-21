@@ -11,7 +11,7 @@ authors = [
 ]
 dependencies = [
     "apscheduler==3.11.1",
-    "fastapi[standard]==0.125.0",
+    "fastapi[standard]==0.126.0",
     "gitpython==3.1.45",
     "pydantic==2.12.5",
     "pyyaml==6.0.3",
@@ -28,7 +28,6 @@ dev = [
     "pytest-cov==7.0.0",
     "ruff==0.14.10",
     "ty==0.0.5",
-    "types-PyYAML==6.0.12.20250915"
 ]
 
 [build-system]

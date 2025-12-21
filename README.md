@@ -33,7 +33,6 @@
 
 - Docker
 - Docker Compose
-- UV
 
 ### Installation
 
@@ -330,29 +329,29 @@ docker-compose up -d
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DOCKER_GID` | Auto-detected | Docker socket group (required) |
-| `VIGILCD_CHECK_INTERVAL_MINUTES` | `5` | Polling interval |
-| `VIGILCD_GIT_RETRY_COUNT` | `3` | Git operation retries |
-| `VIGILCD_DOCKER_TIMEOUT` | `300` | Docker Compose timeout (seconds) |
-| `VIGILCD_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| Variable                         | Default       | Description                             |
+|----------------------------------|---------------|-----------------------------------------|
+| `DOCKER_GID`                     | Auto-detected | Docker socket group (required)          |
+| `VIGILCD_CHECK_INTERVAL_MINUTES` | `5`           | Polling interval                        |
+| `VIGILCD_GIT_RETRY_COUNT`        | `3`           | Git operation retries                   |
+| `VIGILCD_DOCKER_TIMEOUT`         | `300`         | Docker Compose timeout (seconds)        |
+| `VIGILCD_LOG_LEVEL`              | `INFO`        | Log level (DEBUG, INFO, WARNING, ERROR) |
 
 ### Repository Options
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | ✅ | Unique identifier |
-| `url` | ✅ | Git URL (HTTPS or SSH) |
-| `auth_method` | ❌ | `"https"` or `"ssh"` (default: `"https"`) |
-| `ssh_key_path` | ❌ | Custom SSH key path |
-| `registries` | ❌ | Private Docker registries |
+| Field          | Required | Description                               |
+|----------------|----------|-------------------------------------------|
+| `name`         | ✅        | Unique identifier                         |
+| `url`          | ✅        | Git URL (HTTPS or SSH)                    |
+| `auth_method`  | ❌        | `"https"` or `"ssh"` (default: `"https"`) |
+| `ssh_key_path` | ❌        | Custom SSH key path                       |
+| `registries`   | ❌        | Private Docker registries                 |
 
 ### Target Options
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `deploy` | `true` | Auto-deploy on changes |
+| Field          | Default | Description                     |
+|----------------|---------|---------------------------------|
+| `deploy`       | `true`  | Auto-deploy on changes          |
 | `build_images` | `false` | Run `docker compose up --build` |
 
 ## 📊 Production Deployment
