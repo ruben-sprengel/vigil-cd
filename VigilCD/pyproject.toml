@@ -27,7 +27,7 @@ dev = [
     "pytest-asyncio==1.3.0",
     "pytest-cov==7.0.0",
     "ruff==0.14.10",
-    "mypy==1.19.1",
+    "ty==0.0.5",
     "types-PyYAML==6.0.12.20250915"
 ]
 
@@ -105,3 +105,13 @@ known-local-folder = ["src"]
 
 [tool.ruff.lint.pylint]
 allow-dunder-method-names = ["__tablename__", "__table_args__"]
+
+[tool.ty.src]
+exclude = [".venv", "build", "dist"]
+
+[tool.ty.rules]
+unused-ignore-comment = "warn"
+possibly-missing-attribute = "error"
+possibly-missing-implicit-call = "error"
+possibly-missing-import = "error"
+possibly-unresolved-reference = "error"

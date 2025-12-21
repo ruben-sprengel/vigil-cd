@@ -192,6 +192,7 @@ class DeploymentService:
             True if Docker daemon is reachable, False otherwise.
 
         """
+        timeout = 10.0
         try:
             timeout = self.config.deployment.docker_daemon_timeout_seconds
             docker_cmd = self._get_executable_path("docker")
@@ -569,6 +570,8 @@ class DeploymentService:
             None
 
         """
+        timeout = 10.0
+
         if not self.is_docker_daemon_running():
             logger.error(f"Docker daemon not available for {target.name}")
             state_manager.update_target(

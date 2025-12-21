@@ -7,9 +7,9 @@
 [![trivy-scan](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml)
 
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![uv](https://img.shields.io/badge/-uv-%23000000.svg?logo=astral&logoColor=white)](https://astral.sh/uv)
-[![Ruff](https://img.shields.io/badge/ruff-%23000000.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
-[![mypy](https://img.shields.io/badge/mypy-blue.svg?logo=python&logoColor=white)](https://github.com/python/mypy)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 [![pytest](https://img.shields.io/badge/pytest-green.svg?logo=pytest&logoColor=white)](https://github.com/pytest-dev/pytest)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubensprengel)

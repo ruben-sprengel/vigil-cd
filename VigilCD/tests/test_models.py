@@ -229,7 +229,7 @@ def test_repo_config_with_registries():
         registries=registries,
         branches=[],
     )
-
+    assert repo.registries is not None
     assert len(repo.registries) == 2
     assert repo.registries[0].url == "docker.io"
     assert repo.registries[1].username == "user"
@@ -244,6 +244,7 @@ def test_repo_config_with_branches():
 
     repo = RepoConfig(name="test", url="https://github.com/user/test", branches=branches)
 
+    assert repo.branches is not None
     assert len(repo.branches) == 2
     assert repo.branches[0].name == "main"
     assert repo.branches[1].name == "develop"
@@ -271,6 +272,7 @@ def test_repo_config_complex():
 
     assert repo.name == "complex-repo"
     assert repo.auth_method == "ssh"
+    assert repo.registries is not None
     assert len(repo.registries) == 1
     assert len(repo.branches) == 1
     assert len(repo.branches[0].targets) == 2
@@ -602,6 +604,7 @@ def test_full_config_structure():
     repo = config.repos[0]
     assert repo.name == "production-app"
     assert repo.auth_method == "ssh"
+    assert repo.registries is not None
     assert len(repo.registries) == 1
     assert len(repo.branches) == 2
 

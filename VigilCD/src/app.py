@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
-from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore[import-untyped]
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -57,8 +57,8 @@ origins = [
 ]
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
+    CORSMiddleware,  # type: ignore[invalid-argument-type]
+    allow_origins=["http://localhost:5173"],  # Svelte dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
