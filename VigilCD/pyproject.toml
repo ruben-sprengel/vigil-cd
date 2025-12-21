@@ -1,6 +1,6 @@
 [project]
 name = "vigilcd"
-version = "0.7.0"
+version = "0.8.0"
 description = "VigilCD - GitOps Deployment Agent"
 readme = "README.md"
 license = "MIT"
@@ -11,7 +11,7 @@ authors = [
 ]
 dependencies = [
     "apscheduler==3.11.1",
-    "fastapi[standard]==0.125.0",
+    "fastapi[standard]==0.126.0",
     "gitpython==3.1.45",
     "pydantic==2.12.5",
     "pyyaml==6.0.3",
@@ -26,9 +26,8 @@ dev = [
     "pytest==9.0.2",
     "pytest-asyncio==1.3.0",
     "pytest-cov==7.0.0",
-    "ruff==0.14.9",
-    "mypy==1.19.1",
-    "types-PyYAML==6.0.12.20250915"
+    "ruff==0.14.10",
+    "ty==0.0.5",
 ]
 
 [build-system]
@@ -105,3 +104,13 @@ known-local-folder = ["src"]
 
 [tool.ruff.lint.pylint]
 allow-dunder-method-names = ["__tablename__", "__table_args__"]
+
+[tool.ty.src]
+exclude = [".venv", "build", "dist"]
+
+[tool.ty.rules]
+unused-ignore-comment = "warn"
+possibly-missing-attribute = "error"
+possibly-missing-implicit-call = "error"
+possibly-missing-import = "error"
+possibly-unresolved-reference = "error"

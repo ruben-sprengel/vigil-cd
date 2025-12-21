@@ -48,16 +48,28 @@ jobs:
         run: uv sync --locked --all-extras --dev
 
       - name: Run Ruff Formatter
-        run: uv run ruff format . --check
+        run: uv run ruff format --check
 
       - name: Run Ruff Linter
-        run: uv run ruff check . --exit-zero
+        run: uv run ruff check --exit-zero
 
-      - name: Run mypy
-        run: uv run mypy .
+      - name: Run ty
+        run: uv run ty check
 
       - name: Run pytest with coverage
         run: uv run pytest --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
 
       - name: Minimize uv cache
         run: uv cache prune --ci
+
+  ci-lint-and-tests-all-passed:
+      runs-on: ubuntu-latest
+      needs: lint-and-test
+      if: always()
+      steps:
+        - name: All checks passed?
+          run: |
+            if [ "${{ needs.lint-and-test.result }}" != "success" ]; then
+              echo "Matrix jobs failed!"
+              exit 1
+            fi

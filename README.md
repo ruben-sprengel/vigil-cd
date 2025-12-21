@@ -7,9 +7,9 @@
 [![trivy-scan](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/ruben-sprengel/vigil-cd/actions/workflows/trivy-scan.yml)
 
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![uv](https://img.shields.io/badge/-uv-%23000000.svg?logo=astral&logoColor=white)](https://astral.sh/uv)
-[![Ruff](https://img.shields.io/badge/ruff-%23000000.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
-[![mypy](https://img.shields.io/badge/mypy-blue.svg?logo=python&logoColor=white)](https://github.com/python/mypy)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 [![pytest](https://img.shields.io/badge/pytest-green.svg?logo=pytest&logoColor=white)](https://github.com/pytest-dev/pytest)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rubensprengel)
@@ -33,7 +33,6 @@
 
 - Docker
 - Docker Compose
-- UV
 
 ### Installation
 
@@ -330,29 +329,29 @@ docker-compose up -d
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DOCKER_GID` | Auto-detected | Docker socket group (required) |
-| `VIGILCD_CHECK_INTERVAL_MINUTES` | `5` | Polling interval |
-| `VIGILCD_GIT_RETRY_COUNT` | `3` | Git operation retries |
-| `VIGILCD_DOCKER_TIMEOUT` | `300` | Docker Compose timeout (seconds) |
-| `VIGILCD_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| Variable                         | Default       | Description                             |
+|----------------------------------|---------------|-----------------------------------------|
+| `DOCKER_GID`                     | Auto-detected | Docker socket group (required)          |
+| `VIGILCD_CHECK_INTERVAL_MINUTES` | `5`           | Polling interval                        |
+| `VIGILCD_GIT_RETRY_COUNT`        | `3`           | Git operation retries                   |
+| `VIGILCD_DOCKER_TIMEOUT`         | `300`         | Docker Compose timeout (seconds)        |
+| `VIGILCD_LOG_LEVEL`              | `INFO`        | Log level (DEBUG, INFO, WARNING, ERROR) |
 
 ### Repository Options
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | ✅ | Unique identifier |
-| `url` | ✅ | Git URL (HTTPS or SSH) |
-| `auth_method` | ❌ | `"https"` or `"ssh"` (default: `"https"`) |
-| `ssh_key_path` | ❌ | Custom SSH key path |
-| `registries` | ❌ | Private Docker registries |
+| Field          | Required | Description                               |
+|----------------|----------|-------------------------------------------|
+| `name`         | ✅        | Unique identifier                         |
+| `url`          | ✅        | Git URL (HTTPS or SSH)                    |
+| `auth_method`  | ❌        | `"https"` or `"ssh"` (default: `"https"`) |
+| `ssh_key_path` | ❌        | Custom SSH key path                       |
+| `registries`   | ❌        | Private Docker registries                 |
 
 ### Target Options
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `deploy` | `true` | Auto-deploy on changes |
+| Field          | Default | Description                     |
+|----------------|---------|---------------------------------|
+| `deploy`       | `true`  | Auto-deploy on changes          |
 | `build_images` | `false` | Run `docker compose up --build` |
 
 ## 📊 Production Deployment
