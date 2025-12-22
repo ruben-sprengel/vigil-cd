@@ -40,6 +40,8 @@ jobs:
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'merge_group' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && contains(fromJSON('["refs/heads/main", "refs/heads/development", "refs/heads/staging"]'), github.ref))
     steps:
     - name: Checkout repository
